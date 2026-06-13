@@ -20,7 +20,7 @@ func productCmd(app *App) *cobra.Command {
 			}
 			if app.DryRun {
 				for _, a := range args {
-					fmt.Fprintln(cmd.OutOrStdout(), resolveURL(c, a))
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolveURL(c, a))
 				}
 				return nil
 			}
@@ -31,7 +31,7 @@ func productCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			var firstErr error
 			for _, a := range args {
 				p, err := c.FetchProduct(cmd.Context(), a)
@@ -39,7 +39,7 @@ func productCmd(app *App) *cobra.Command {
 					if firstErr == nil {
 						firstErr = err
 					}
-					fmt.Fprintf(cmd.ErrOrStderr(), "amz: %s: %v\n", a, err)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "amz: %s: %v\n", a, err)
 					continue
 				}
 				if err := out.Emit(productRow(p)); err != nil {
@@ -47,7 +47,7 @@ func productCmd(app *App) *cobra.Command {
 				}
 				if variants {
 					for _, v := range p.VariantASINs {
-						out.Emit(stringRow("variant_asin", v))
+						_ = out.Emit(stringRow("variant_asin", v))
 					}
 				}
 				if withOffers {
@@ -74,7 +74,7 @@ func rawProduct(cmd *cobra.Command, app *App, c *amz.Client, args []string) erro
 		if err != nil {
 			return exit(codeFor(err), err)
 		}
-		out.Write(body)
+		_, _ = out.Write(body)
 	}
 	return nil
 }
@@ -93,7 +93,7 @@ func priceCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			var firstErr error
 			for _, a := range args {
 				p, err := c.FetchProduct(cmd.Context(), a)
@@ -101,10 +101,10 @@ func priceCmd(app *App) *cobra.Command {
 					if firstErr == nil {
 						firstErr = err
 					}
-					fmt.Fprintf(cmd.ErrOrStderr(), "amz: %s: %v\n", a, err)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "amz: %s: %v\n", a, err)
 					continue
 				}
-				out.Emit(priceRow(p))
+				_ = out.Emit(priceRow(p))
 			}
 			if out.Count() == 0 {
 				return emitErr(out, firstErr)
@@ -131,14 +131,14 @@ func relatedCmd(app *App) *cobra.Command {
 				asin = args[0]
 			}
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.ProductURL(asin))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.ProductURL(asin))
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			ferr := c.FetchRelated(cmd.Context(), asin, app.Limit, func(card amz.Card) error {
 				if kind != "" && card.Kind != kind {
 					return nil

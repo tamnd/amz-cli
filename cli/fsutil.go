@@ -7,7 +7,7 @@ import (
 
 // dirStats returns the file count and total byte size under dir.
 func dirStats(dir string) (files int, bytes int64) {
-	filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}

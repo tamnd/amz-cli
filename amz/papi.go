@@ -151,7 +151,7 @@ func (p *PAClient) call(ctx context.Context, op string, payload map[string]any) 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("PA-API %s: http %d: %s", op, resp.StatusCode, strings.TrimSpace(string(raw)))

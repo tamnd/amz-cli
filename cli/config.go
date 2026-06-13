@@ -19,7 +19,7 @@ func configCmd(app *App) *cobra.Command {
 			Use:   "path",
 			Short: "Print the config file location",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Fprintln(cmd.OutOrStdout(), configFile(app))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), configFile(app))
 				return nil
 			},
 		},
@@ -29,18 +29,18 @@ func configCmd(app *App) *cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				cfg := app.Config()
 				w := cmd.OutOrStdout()
-				fmt.Fprintf(w, "marketplace      = %s\n", cfg.Marketplace)
-				fmt.Fprintf(w, "rate             = %s\n", cfg.Delay)
-				fmt.Fprintf(w, "retries          = %d\n", cfg.Retries)
-				fmt.Fprintf(w, "timeout          = %s\n", cfg.Timeout)
-				fmt.Fprintf(w, "workers          = %d\n", cfg.Workers)
-				fmt.Fprintf(w, "data_dir         = %s\n", cfg.DataDir)
-				fmt.Fprintf(w, "cache_dir        = %s\n", cfg.CacheDir)
-				fmt.Fprintf(w, "db_path          = %s\n", cfg.DBPath)
-				fmt.Fprintf(w, "paapi_host       = %s\n", cfg.PAAPIHost)
-				fmt.Fprintf(w, "paapi_region     = %s\n", cfg.PAAPIRegion)
-				fmt.Fprintf(w, "paapi_access_key = %s\n", masked(cfg.PAAPIAccessKey))
-				fmt.Fprintf(w, "paapi_partner    = %s\n", cfg.PAAPIPartnerTag)
+				_, _ = fmt.Fprintf(w, "marketplace      = %s\n", cfg.Marketplace)
+				_, _ = fmt.Fprintf(w, "rate             = %s\n", cfg.Delay)
+				_, _ = fmt.Fprintf(w, "retries          = %d\n", cfg.Retries)
+				_, _ = fmt.Fprintf(w, "timeout          = %s\n", cfg.Timeout)
+				_, _ = fmt.Fprintf(w, "workers          = %d\n", cfg.Workers)
+				_, _ = fmt.Fprintf(w, "data_dir         = %s\n", cfg.DataDir)
+				_, _ = fmt.Fprintf(w, "cache_dir        = %s\n", cfg.CacheDir)
+				_, _ = fmt.Fprintf(w, "db_path          = %s\n", cfg.DBPath)
+				_, _ = fmt.Fprintf(w, "paapi_host       = %s\n", cfg.PAAPIHost)
+				_, _ = fmt.Fprintf(w, "paapi_region     = %s\n", cfg.PAAPIRegion)
+				_, _ = fmt.Fprintf(w, "paapi_access_key = %s\n", masked(cfg.PAAPIAccessKey))
+				_, _ = fmt.Fprintf(w, "paapi_partner    = %s\n", cfg.PAAPIPartnerTag)
 				return nil
 			},
 		},
@@ -53,13 +53,13 @@ func configCmd(app *App) *cobra.Command {
 					return exit(CodeRuntime, err)
 				}
 				if _, err := os.Stat(path); err == nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "config already exists: %s\n", path)
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "config already exists: %s\n", path)
 					return nil
 				}
 				if err := os.WriteFile(path, []byte(starterConfig), 0o644); err != nil {
 					return exit(CodeRuntime, err)
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", path)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "wrote %s\n", path)
 				return nil
 			},
 		},

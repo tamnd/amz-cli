@@ -51,11 +51,11 @@ func fixtureServer(t *testing.T) (*Client, func()) {
 		}
 		// Pagination terminates: page 2+ of search/reviews returns an empty list.
 		if pg := r.URL.Query().Get("page"); pg != "" && pg != "1" {
-			w.Write([]byte("<html><body></body></html>"))
+			_, _ = w.Write([]byte("<html><body></body></html>"))
 			return
 		}
 		if pg := r.URL.Query().Get("pageNumber"); pg != "" && pg != "1" {
-			w.Write([]byte("<html><body></body></html>"))
+			_, _ = w.Write([]byte("<html><body></body></html>"))
 			return
 		}
 		b, err := os.ReadFile(filepath.Join("testdata", name))
@@ -64,7 +64,7 @@ func fixtureServer(t *testing.T) (*Client, func()) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		w.Write(b)
+		_, _ = w.Write(b)
 	}))
 	cfg := DefaultConfig()
 	cfg.Delay = 0

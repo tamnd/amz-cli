@@ -22,7 +22,7 @@ func searchCmd(app *App) *cobra.Command {
 			query := joinArgs(args)
 			q.Limit = app.Limit
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.SearchURL(query, q, q.StartPage))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.SearchURL(query, q, q.StartPage))
 				return nil
 			}
 			if enqueue {
@@ -32,7 +32,7 @@ func searchCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			ferr := c.Search(cmd.Context(), query, q, func(card amz.Card) error {
 				return out.Emit(cardRow(card))
 			})

@@ -32,7 +32,7 @@ func openCmd(app *App) *cobra.Command {
 				target = c.BaseURL() + "/s?k=" + url.QueryEscape(joinArgs(args))
 			}
 			if printOnly || app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), target)
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), target)
 				return nil
 			}
 			return exit(codeFor(openBrowser(target)), openBrowser(target))
@@ -48,7 +48,7 @@ func isBareASIN(s string) bool {
 		return false
 	}
 	for _, r := range s {
-		if !(r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
 			return false
 		}
 	}
@@ -83,11 +83,11 @@ func asinCmd(app *App) *cobra.Command {
 					asin = a
 				}
 				if asin == "" {
-					fmt.Fprintf(cmd.ErrOrStderr(), "amz: no ASIN in %q\n", a)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "amz: no ASIN in %q\n", a)
 					continue
 				}
 				found = true
-				fmt.Fprintln(cmd.OutOrStdout(), asin)
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), asin)
 			}
 			if !found {
 				return exit(CodeNoData, fmt.Errorf("no ASIN found"))
@@ -106,15 +106,15 @@ func infoCmd(app *App) *cobra.Command {
 			cfg := app.Config()
 			mkt, _ := amz.LookupMarketplace(app.Marketplace)
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "amz %s (%s)\n", Version, Commit)
-			fmt.Fprintf(w, "marketplace:  %s  %s  (%s, %s)\n", mkt.Slug, mkt.Host, mkt.Currency, mkt.Language)
-			fmt.Fprintf(w, "access tier:  %s\n", accessTier(app))
-			fmt.Fprintf(w, "rate limit:   %s between requests, %d retries\n", cfg.Delay, cfg.Retries)
-			fmt.Fprintf(w, "cache dir:    %s\n", cfg.CacheDir)
-			fmt.Fprintf(w, "data dir:     %s\n", cfg.DataDir)
-			fmt.Fprintf(w, "db path:      %s\n", cfg.DBPath)
-			fmt.Fprintf(w, "marketplaces: %s\n", marketplaceSlugs())
-			fmt.Fprintln(w, "etiquette:    public pages only; respect robots and ToS; this is a polite, rate-limited reader.")
+			_, _ = fmt.Fprintf(w, "amz %s (%s)\n", Version, Commit)
+			_, _ = fmt.Fprintf(w, "marketplace:  %s  %s  (%s, %s)\n", mkt.Slug, mkt.Host, mkt.Currency, mkt.Language)
+			_, _ = fmt.Fprintf(w, "access tier:  %s\n", accessTier(app))
+			_, _ = fmt.Fprintf(w, "rate limit:   %s between requests, %d retries\n", cfg.Delay, cfg.Retries)
+			_, _ = fmt.Fprintf(w, "cache dir:    %s\n", cfg.CacheDir)
+			_, _ = fmt.Fprintf(w, "data dir:     %s\n", cfg.DataDir)
+			_, _ = fmt.Fprintf(w, "db path:      %s\n", cfg.DBPath)
+			_, _ = fmt.Fprintf(w, "marketplaces: %s\n", marketplaceSlugs())
+			_, _ = fmt.Fprintln(w, "etiquette:    public pages only; respect robots and ToS; this is a polite, rate-limited reader.")
 			return nil
 		},
 	}
@@ -142,7 +142,7 @@ func cacheCmd(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir := app.Config().CacheDir
 			files, bytes := dirStats(dir)
-			fmt.Fprintf(cmd.OutOrStdout(), "cache dir: %s\nfiles:     %d\nsize:      %s\n", dir, files, humanBytes(bytes))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "cache dir: %s\nfiles:     %d\nsize:      %s\n", dir, files, humanBytes(bytes))
 			return nil
 		},
 	})
@@ -154,7 +154,7 @@ func cacheCmd(app *App) *cobra.Command {
 			if err := removeContents(dir); err != nil {
 				return exit(CodeRuntime, err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "cleared %s\n", dir)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "cleared %s\n", dir)
 			return nil
 		},
 	})

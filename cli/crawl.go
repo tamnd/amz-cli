@@ -44,7 +44,7 @@ func seedCmd(app *App) *cobra.Command {
 				}
 				n++
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "enqueued %d item(s)\n", n)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "enqueued %d item(s)\n", n)
 			return nil
 		},
 	}
@@ -71,7 +71,7 @@ func readSeeds(file string, args []string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		r = bufio.NewScanner(f)
 	}
 	for r.Scan() {
@@ -113,7 +113,7 @@ func enqueueSearch(cmd *cobra.Command, app *App, c *amz.Client, query string, q 
 	if ferr != nil {
 		return exit(codeFor(ferr), ferr)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "enqueued %d product(s)\n", n)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "enqueued %d product(s)\n", n)
 	return nil
 }
 
@@ -161,7 +161,7 @@ func drainQueue(ctx context.Context, cmd *cobra.Command, app *App, s *amz.Store,
 		sem := make(chan struct{}, workers)
 		for _, it := range batch {
 			if len(allow) > 0 && !allow[it.Entity] {
-				s.MarkStatus(ctx, it.ID, "skipped")
+				_ = s.MarkStatus(ctx, it.ID, "skipped")
 				continue
 			}
 			wg.Add(1)
@@ -174,23 +174,23 @@ func drainQueue(ctx context.Context, cmd *cobra.Command, app *App, s *amz.Store,
 				if err != nil {
 					failed++
 					if errors.Is(err, amz.ErrBlocked) {
-						s.MarkStatus(ctx, it.ID, "pending")
-						fmt.Fprintln(cmd.ErrOrStderr(), "amz: blocked, backing off 60s")
+						_ = s.MarkStatus(ctx, it.ID, "pending")
+						_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "amz: blocked, backing off 60s")
 						mu.Unlock()
 						time.Sleep(60 * time.Second)
 						return
 					}
-					s.MarkStatus(ctx, it.ID, "error")
+					_ = s.MarkStatus(ctx, it.ID, "error")
 				} else {
 					done++
-					s.MarkStatus(ctx, it.ID, "done")
+					_ = s.MarkStatus(ctx, it.ID, "done")
 				}
 				mu.Unlock()
 			}(it)
 		}
 		wg.Wait()
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "crawl complete: %d done, %d failed\n", done, failed)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "crawl complete: %d done, %d failed\n", done, failed)
 	if done == 0 && failed > 0 {
 		return exit(CodePartial, nil)
 	}
