@@ -41,7 +41,6 @@ type Output struct {
 	noHeader bool
 	tmpl     *template.Template
 
-	started   bool
 	wroteHead bool
 	csvw      *csv.Writer
 	jsonFirst bool
@@ -131,23 +130,26 @@ func (o *Output) Emit(r Row) error {
 		_, err = o.w.Write(append(b, '\n'))
 		return err
 	case FormatJSON:
+		// bufio errors are sticky and surface at the final Write/Flush below.
 		if o.jsonFirst {
-			o.w.WriteString("[\n")
+			_, _ = o.w.WriteString("[\n")
 			o.jsonFirst = false
 		} else {
-			o.w.WriteString(",\n")
+			_, _ = o.w.WriteString(",\n")
 		}
 		b, err := json.MarshalIndent(r.Value, "  ", "  ")
 		if err != nil {
 			return err
 		}
-		o.w.WriteString("  ")
+		_, _ = o.w.WriteString("  ")
 		_, err = o.w.Write(b)
 		return err
 	case FormatCSV, FormatTSV:
 		cols, vals := o.project(r)
 		if !o.wroteHead && !o.noHeader {
-			o.csvw.Write(cols)
+			if err := o.csvw.Write(cols); err != nil {
+				return err
+			}
 			o.wroteHead = true
 		}
 		return o.csvw.Write(vals)
@@ -187,9 +189,9 @@ func (o *Output) Close() error {
 	switch o.format {
 	case FormatJSON:
 		if o.jsonFirst {
-			o.w.WriteString("[]\n")
+			_, _ = o.w.WriteString("[]\n")
 		} else {
-			o.w.WriteString("\n]\n")
+			_, _ = o.w.WriteString("\n]\n")
 		}
 	case FormatCSV, FormatTSV:
 		o.csvw.Flush()
@@ -238,7 +240,7 @@ func (o *Output) writeTableRow(cells []string, widths []int) {
 			}
 		}
 	}
-	o.w.WriteString(strings.TrimRight(b.String(), " ") + "\n")
+	_, _ = o.w.WriteString(strings.TrimRight(b.String(), " ") + "\n")
 }
 
 func upperAll(in []string) []string {

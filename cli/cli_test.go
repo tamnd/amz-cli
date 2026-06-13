@@ -46,11 +46,11 @@ func fixtureServer(t *testing.T) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		if pg := q.Get("page"); pg != "" && pg != "1" {
-			w.Write([]byte("<html></html>"))
+			_, _ = w.Write([]byte("<html></html>"))
 			return
 		}
 		if pg := q.Get("pageNumber"); pg != "" && pg != "1" {
-			w.Write([]byte("<html></html>"))
+			_, _ = w.Write([]byte("<html></html>"))
 			return
 		}
 		name := route(r.URL.Path)
@@ -59,7 +59,7 @@ func fixtureServer(t *testing.T) *httptest.Server {
 			return
 		}
 		b, _ := os.ReadFile(filepath.Join(dir, name))
-		w.Write(b)
+		_, _ = w.Write(b)
 	}))
 	t.Setenv("AMZ_BASE_URL", srv.URL)
 	t.Setenv("AMZ_CACHE_DIR", t.TempDir())

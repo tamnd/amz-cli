@@ -27,7 +27,7 @@ func dbCmd(app *App) *cobra.Command {
 			Use:   "path",
 			Short: "Print the database file location",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				fmt.Fprintln(cmd.OutOrStdout(), app.Config().DBPath)
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), app.Config().DBPath)
 				return nil
 			},
 		},
@@ -44,7 +44,7 @@ func dbCmd(app *App) *cobra.Command {
 					return exit(CodeRuntime, err)
 				}
 				for _, r := range rows {
-					fmt.Fprintf(cmd.OutOrStdout(), "%-14s %v\n", r["table"], r["rows"])
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%-14s %v\n", r["table"], r["rows"])
 				}
 				return nil
 			},
@@ -64,7 +64,9 @@ func dbCmd(app *App) *cobra.Command {
 				}
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				for _, r := range rows {
-					enc.Encode(r)
+					if err := enc.Encode(r); err != nil {
+						return err
+					}
 				}
 				return nil
 			},
@@ -80,7 +82,7 @@ func dbCmd(app *App) *cobra.Command {
 				if err := s.Vacuum(cmd.Context()); err != nil {
 					return exit(CodeRuntime, err)
 				}
-				fmt.Fprintln(cmd.OutOrStdout(), "ok")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 				return nil
 			},
 		},
@@ -92,7 +94,7 @@ func dbCmd(app *App) *cobra.Command {
 				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 					return exit(CodeRuntime, err)
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", path)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", path)
 				return nil
 			},
 		},

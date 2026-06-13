@@ -135,7 +135,7 @@ func (c *Client) fetch(ctx context.Context, rawURL string) ([]byte, error) {
 			continue
 		}
 		body, rerr := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if rerr != nil {
 			lastErr = rerr
 			continue
@@ -176,7 +176,7 @@ func (c *Client) loadCookies(path string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	var cookies []*http.Cookie
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {

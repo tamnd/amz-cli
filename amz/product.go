@@ -121,7 +121,7 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 	doc.Find("#detailBullets_feature_div li").Each(func(_ int, s *goquery.Selection) {
 		spans := s.Find("span.a-list-item span")
 		if spans.Length() >= 2 {
-			k := collapseSpace(strings.Trim(spans.Eq(0).Text(), " :‎‏"))
+			k := collapseSpace(strings.Trim(spans.Eq(0).Text(), " :\u200e\u200f"))
 			v := collapseSpace(spans.Eq(1).Text())
 			if k != "" && v != "" {
 				p.Specs[k] = v

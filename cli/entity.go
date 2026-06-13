@@ -19,14 +19,14 @@ func categoryCmd(app *App) *cobra.Command {
 				return err
 			}
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.CategoryURL(args[0]))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.CategoryURL(args[0]))
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			cat, ferr := c.FetchCategory(cmd.Context(), args[0])
 			if ferr != nil {
 				return exit(codeFor(ferr), ferr)
@@ -34,14 +34,14 @@ func categoryCmd(app *App) *cobra.Command {
 			switch {
 			case children:
 				for _, n := range cat.ChildNodeIDs {
-					out.Emit(stringRow("child_node_id", n))
+					_ = out.Emit(stringRow("child_node_id", n))
 				}
 			case top:
 				for _, a := range cat.TopASINs {
-					out.Emit(Row{Cols: []string{"asin"}, Vals: []string{a}, Value: map[string]string{"asin": a}, URL: c.ProductURL(a)})
+					_ = out.Emit(Row{Cols: []string{"asin"}, Vals: []string{a}, Value: map[string]string{"asin": a}, URL: c.ProductURL(a)})
 				}
 			default:
-				out.Emit(categoryRow(cat))
+				_ = out.Emit(categoryRow(cat))
 			}
 			return emitErr(out, nil)
 		},
@@ -63,24 +63,24 @@ func brandCmd(app *App) *cobra.Command {
 				return err
 			}
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.BrandURL(args[0]))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.BrandURL(args[0]))
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			b, ferr := c.FetchBrand(cmd.Context(), args[0])
 			if ferr != nil {
 				return exit(codeFor(ferr), ferr)
 			}
 			if featured {
 				for _, a := range b.FeaturedASINs {
-					out.Emit(Row{Cols: []string{"asin"}, Vals: []string{a}, Value: map[string]string{"asin": a}, URL: c.ProductURL(a)})
+					_ = out.Emit(Row{Cols: []string{"asin"}, Vals: []string{a}, Value: map[string]string{"asin": a}, URL: c.ProductURL(a)})
 				}
 			} else {
-				out.Emit(brandRow(b))
+				_ = out.Emit(brandRow(b))
 			}
 			return emitErr(out, nil)
 		},
@@ -100,19 +100,19 @@ func sellerCmd(app *App) *cobra.Command {
 				return err
 			}
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.SellerURL(args[0]))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.SellerURL(args[0]))
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			s, ferr := c.FetchSeller(cmd.Context(), args[0])
 			if ferr != nil {
 				return exit(codeFor(ferr), ferr)
 			}
-			out.Emit(sellerRow(s))
+			_ = out.Emit(sellerRow(s))
 			return emitErr(out, nil)
 		},
 	}
@@ -131,24 +131,24 @@ func authorCmd(app *App) *cobra.Command {
 				return err
 			}
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.AuthorURL(args[0]))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.AuthorURL(args[0]))
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			a, ferr := c.FetchAuthor(cmd.Context(), args[0])
 			if ferr != nil {
 				return exit(codeFor(ferr), ferr)
 			}
 			if books {
 				for _, x := range a.BookASINs {
-					out.Emit(Row{Cols: []string{"asin"}, Vals: []string{x}, Value: map[string]string{"asin": x}, URL: c.ProductURL(x)})
+					_ = out.Emit(Row{Cols: []string{"asin"}, Vals: []string{x}, Value: map[string]string{"asin": x}, URL: c.ProductURL(x)})
 				}
 			} else {
-				out.Emit(authorRow(a))
+				_ = out.Emit(authorRow(a))
 			}
 			return emitErr(out, nil)
 		},
@@ -170,14 +170,14 @@ func dealsCmd(app *App) *cobra.Command {
 				return err
 			}
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.DealsURL())
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.DealsURL())
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			ferr := c.FetchDeals(cmd.Context(), app.Limit, func(d amz.Deal) error {
 				if minDiscount > 0 && d.DiscountPct < minDiscount {
 					return nil

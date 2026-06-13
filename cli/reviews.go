@@ -22,14 +22,14 @@ func reviewsCmd(app *App) *cobra.Command {
 			asin := asinArg(args[0])
 			q.Limit = app.Limit
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.ReviewURL(asin, q, max(q.StartPage, 1)))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.ReviewURL(asin, q, max(q.StartPage, 1)))
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			ferr := c.FetchReviews(cmd.Context(), asin, q, func(r amz.Review) error {
 				return out.Emit(reviewRow(r))
 			})
@@ -57,14 +57,14 @@ func qaCmd(app *App) *cobra.Command {
 			}
 			asin := asinArg(args[0])
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.QAURL(asin))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.QAURL(asin))
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			n := 0
 			ferr := c.FetchQA(cmd.Context(), asin, func(q amz.QA) error {
 				if app.Limit > 0 && n >= app.Limit {
@@ -74,7 +74,7 @@ func qaCmd(app *App) *cobra.Command {
 				return out.Emit(qaRow(q))
 			})
 			if errors.Is(ferr, amz.ErrNoQA) {
-				fmt.Fprintln(cmd.ErrOrStderr(), "amz: no Q&A section on this product (Amazon has removed it for many items)")
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "amz: no Q&A section on this product (Amazon has removed it for many items)")
 				return exit(CodeNoData, ferr)
 			}
 			return emitErr(out, ferr)
@@ -96,14 +96,14 @@ func offersCmd(app *App) *cobra.Command {
 			}
 			asin := asinArg(args[0])
 			if app.DryRun {
-				fmt.Fprintln(cmd.OutOrStdout(), c.OffersURL(asin))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), c.OffersURL(asin))
 				return nil
 			}
 			out, err := app.Output()
 			if err != nil {
 				return err
 			}
-			defer out.Close()
+			defer func() { _ = out.Close() }()
 			n := 0
 			ferr := c.FetchOffers(cmd.Context(), asin, q, func(o amz.Offer) error {
 				if app.Limit > 0 && n >= app.Limit {
