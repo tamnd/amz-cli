@@ -21,54 +21,73 @@ const (
 	EntityBestseller = "bestseller"
 )
 
+// ProductRank is one Best Sellers Rank line: a position within a named category.
+// A product is usually ranked once overall and again in one or more subcategories.
+type ProductRank struct {
+	Rank     int    `json:"rank"`
+	Category string `json:"category"`
+}
+
 // Product is a normalized amazon.com product detail page.
 type Product struct {
-	ASIN          string            `json:"asin"`
-	Title         string            `json:"title"`
-	Brand         string            `json:"brand"`
-	BrandID       string            `json:"brand_id,omitempty"`
-	Price         float64           `json:"price"`
-	Currency      string            `json:"currency"`
-	ListPrice     float64           `json:"list_price,omitempty"`
-	Rating        float64           `json:"rating"`
-	RatingsCount  int64             `json:"ratings_count"`
-	ReviewsCount  int64             `json:"reviews_count,omitempty"`
-	AnsweredQs    int               `json:"answered_qs,omitempty"`
-	Availability  string            `json:"availability"`
-	Description   string            `json:"description,omitempty"`
-	BulletPoints  []string          `json:"bullet_points,omitempty"`
-	Specs         map[string]string `json:"specs,omitempty"`
-	Images        []string          `json:"images,omitempty"`
-	CategoryPath  []string          `json:"category_path,omitempty"`
-	BrowseNodeIDs []string          `json:"browse_node_ids,omitempty"`
-	SellerID      string            `json:"seller_id,omitempty"`
-	SellerName    string            `json:"seller_name,omitempty"`
-	SoldBy        string            `json:"sold_by,omitempty"`
-	FulfilledBy   string            `json:"fulfilled_by,omitempty"`
-	VariantASINs  []string          `json:"variant_asins,omitempty"`
-	ParentASIN    string            `json:"parent_asin,omitempty"`
-	SimilarASINs  []string          `json:"similar_asins,omitempty"`
-	Rank          int               `json:"rank,omitempty"`
-	RankCategory  string            `json:"rank_category,omitempty"`
-	Marketplace   string            `json:"marketplace"`
-	URL           string            `json:"url"`
-	FetchedAt     time.Time         `json:"fetched_at"`
+	ASIN            string            `json:"asin"`
+	Title           string            `json:"title"`
+	Brand           string            `json:"brand"`
+	BrandID         string            `json:"brand_id,omitempty"`
+	Price           float64           `json:"price"`
+	Currency        string            `json:"currency"`
+	ListPrice       float64           `json:"list_price,omitempty"`
+	Savings         float64           `json:"savings,omitempty"`
+	SavingsPct      int               `json:"savings_pct,omitempty"`
+	Coupon          string            `json:"coupon,omitempty"`
+	Rating          float64           `json:"rating"`
+	RatingsCount    int64             `json:"ratings_count"`
+	ReviewsCount    int64             `json:"reviews_count,omitempty"`
+	AnsweredQs      int               `json:"answered_qs,omitempty"`
+	BoughtPastMonth string            `json:"bought_past_month,omitempty"`
+	Availability    string            `json:"availability"`
+	InStock         bool              `json:"in_stock"`
+	Description     string            `json:"description,omitempty"`
+	BulletPoints    []string          `json:"bullet_points,omitempty"`
+	Specs           map[string]string `json:"specs,omitempty"`
+	Images          []string          `json:"images,omitempty"`
+	Videos          []string          `json:"videos,omitempty"`
+	CategoryPath    []string          `json:"category_path,omitempty"`
+	BrowseNodeIDs   []string          `json:"browse_node_ids,omitempty"`
+	SellerID        string            `json:"seller_id,omitempty"`
+	SellerName      string            `json:"seller_name,omitempty"`
+	SoldBy          string            `json:"sold_by,omitempty"`
+	ShipsFrom       string            `json:"ships_from,omitempty"`
+	FulfilledBy     string            `json:"fulfilled_by,omitempty"`
+	VariantASINs    []string          `json:"variant_asins,omitempty"`
+	ParentASIN      string            `json:"parent_asin,omitempty"`
+	SimilarASINs    []string          `json:"similar_asins,omitempty"`
+	Rank            int               `json:"rank,omitempty"`
+	RankCategory    string            `json:"rank_category,omitempty"`
+	Ranks           []ProductRank     `json:"ranks,omitempty"`
+	Marketplace     string            `json:"marketplace"`
+	URL             string            `json:"url"`
+	FetchedAt       time.Time         `json:"fetched_at"`
 }
 
 // Card is a lightweight hit from a search page, chart, or recommendation rail.
 type Card struct {
-	Position     int     `json:"position,omitempty"`
-	Rank         int     `json:"rank,omitempty"`
-	ASIN         string  `json:"asin"`
-	Title        string  `json:"title"`
-	Price        float64 `json:"price"`
-	Currency     string  `json:"currency,omitempty"`
-	Rating       float64 `json:"rating,omitempty"`
-	RatingsCount int64   `json:"ratings_count,omitempty"`
-	Image        string  `json:"image,omitempty"`
-	Sponsored    bool    `json:"sponsored,omitempty"`
-	Kind         string  `json:"kind,omitempty"`
-	URL          string  `json:"url"`
+	Position        int     `json:"position,omitempty"`
+	Rank            int     `json:"rank,omitempty"`
+	ASIN            string  `json:"asin"`
+	Title           string  `json:"title"`
+	Price           float64 `json:"price"`
+	ListPrice       float64 `json:"list_price,omitempty"`
+	Currency        string  `json:"currency,omitempty"`
+	Rating          float64 `json:"rating,omitempty"`
+	RatingsCount    int64   `json:"ratings_count,omitempty"`
+	Image           string  `json:"image,omitempty"`
+	Badge           string  `json:"badge,omitempty"`
+	Prime           bool    `json:"prime,omitempty"`
+	BoughtPastMonth string  `json:"bought_past_month,omitempty"`
+	Sponsored       bool    `json:"sponsored,omitempty"`
+	Kind            string  `json:"kind,omitempty"`
+	URL             string  `json:"url"`
 }
 
 // Review is a single product review.

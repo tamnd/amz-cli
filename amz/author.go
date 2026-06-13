@@ -49,6 +49,7 @@ func (c *Client) FetchAuthor(ctx context.Context, slugOrURL string) (Author, err
 	if a.PhotoURL == "" {
 		a.PhotoURL = attr(doc, "meta[property='og:image']", "content")
 	}
+	a.PhotoURL = upgradeImage(a.PhotoURL)
 	doc.Find("a[href*='/dp/']").Each(func(_ int, s *goquery.Selection) {
 		if href, ok := s.Attr("href"); ok {
 			if x := ExtractASIN(href); x != "" {

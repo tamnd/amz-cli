@@ -108,8 +108,33 @@ func TestFetchProduct(t *testing.T) {
 	if p.Specs["Colour"] != "Charcoal" {
 		t.Errorf("specs = %v", p.Specs)
 	}
+	// The hero's many size variants collapse to one master; the alt rail adds a
+	// second distinct photo; the tracking pixel is dropped.
 	if len(p.Images) != 2 {
 		t.Errorf("images = %v", p.Images)
+	}
+	for _, img := range p.Images {
+		if strings.Contains(img, "._SL") || strings.Contains(img, "._SS") || strings.Contains(img, "._AC") {
+			t.Errorf("image not canonicalized: %q", img)
+		}
+	}
+	if len(p.Videos) != 1 || !strings.HasSuffix(p.Videos[0], "echo-dot-demo.mp4") {
+		t.Errorf("videos = %v", p.Videos)
+	}
+	if p.Savings != 10.00 || p.SavingsPct != 16 {
+		t.Errorf("savings = %v pct = %d", p.Savings, p.SavingsPct)
+	}
+	if !strings.Contains(p.Coupon, "$5.00") {
+		t.Errorf("coupon = %q", p.Coupon)
+	}
+	if !strings.Contains(p.BoughtPastMonth, "bought in past month") {
+		t.Errorf("bought_past_month = %q", p.BoughtPastMonth)
+	}
+	if !p.InStock {
+		t.Errorf("in_stock = %v", p.InStock)
+	}
+	if p.ShipsFrom != "Amazon.com" {
+		t.Errorf("ships_from = %q", p.ShipsFrom)
 	}
 	if strings.Join(p.CategoryPath, "/") != "Electronics/Smart Home/Speakers" {
 		t.Errorf("category_path = %v", p.CategoryPath)
@@ -120,8 +145,12 @@ func TestFetchProduct(t *testing.T) {
 	if len(p.VariantASINs) != 2 {
 		t.Errorf("variants = %v", p.VariantASINs)
 	}
+	// Two ranks: #3 overall in Electronics and #1 in Smart Speakers.
 	if p.Rank != 3 || !strings.HasPrefix(p.RankCategory, "Electronics") {
 		t.Errorf("rank = %d %q", p.Rank, p.RankCategory)
+	}
+	if len(p.Ranks) != 2 || p.Ranks[1].Rank != 1 || p.Ranks[1].Category != "Smart Speakers" {
+		t.Errorf("ranks = %+v", p.Ranks)
 	}
 }
 

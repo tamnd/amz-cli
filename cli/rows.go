@@ -37,8 +37,8 @@ func boolStr(v bool) string {
 
 func productRow(p amz.Product) Row {
 	return Row{
-		Cols:  []string{"asin", "title", "brand", "price", "currency", "list_price", "rating", "ratings_count", "reviews_count", "availability", "seller_name", "rank", "url"},
-		Vals:  []string{p.ASIN, p.Title, p.Brand, f2(p.Price), p.Currency, f2(p.ListPrice), f2(p.Rating), i64(p.RatingsCount), i64(p.ReviewsCount), p.Availability, p.SellerName, itoa(p.Rank), p.URL},
+		Cols:  []string{"asin", "title", "brand", "price", "currency", "list_price", "savings_pct", "rating", "ratings_count", "reviews_count", "availability", "bought_past_month", "seller_name", "rank", "url"},
+		Vals:  []string{p.ASIN, p.Title, p.Brand, f2(p.Price), p.Currency, f2(p.ListPrice), itoa(p.SavingsPct), f2(p.Rating), i64(p.RatingsCount), i64(p.ReviewsCount), p.Availability, p.BoughtPastMonth, p.SellerName, itoa(p.Rank), p.URL},
 		Value: p, URL: p.URL,
 	}
 }
@@ -57,8 +57,8 @@ func priceRow(p amz.Product) Row {
 
 func cardRow(c amz.Card) Row {
 	return Row{
-		Cols:  []string{"position", "rank", "asin", "title", "price", "currency", "rating", "ratings_count", "sponsored", "kind", "url"},
-		Vals:  []string{itoa(c.Position), itoa(c.Rank), c.ASIN, c.Title, f2(c.Price), c.Currency, f2(c.Rating), i64(c.RatingsCount), boolStr(c.Sponsored), c.Kind, c.URL},
+		Cols:  []string{"position", "rank", "asin", "title", "price", "list_price", "currency", "rating", "ratings_count", "badge", "prime", "sponsored", "kind", "url"},
+		Vals:  []string{itoa(c.Position), itoa(c.Rank), c.ASIN, c.Title, f2(c.Price), f2(c.ListPrice), c.Currency, f2(c.Rating), i64(c.RatingsCount), c.Badge, boolStr(c.Prime), boolStr(c.Sponsored), c.Kind, c.URL},
 		Value: c, URL: c.URL,
 	}
 }

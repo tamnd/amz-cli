@@ -40,6 +40,43 @@ func TestParsePrice(t *testing.T) {
 	}
 }
 
+func TestUpgradeImage(t *testing.T) {
+	cases := map[string]string{
+		"https://m.media-amazon.com/images/I/71abcID._AC_SX466_.jpg":               "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://images-na.ssl-images-amazon.com/images/I/71abcID._SL1000_.jpg":    "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://m.media-amazon.com/images/I/71abcID._SX38_SY50_CR,0,0,38,50_.jpg": "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://m.media-amazon.com/images/I/71abcID.jpg":                          "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"//images-na.ssl-images-amazon.com/images/I/71abcID._SL500_.jpg":           "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://m.media-amazon.com/images/I/71abcID._AC_.jpg?x=1":                 "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://example.com/logo.png":                                             "https://example.com/logo.png",
+		"data:image/gif;base64,R0lGODlh":                                           "",
+		"https://m.media-amazon.com/images/G/01/x-locale/sprites/foo._CB1_.png":    "",
+		"https://images-na.ssl-images-amazon.com/images/I/transparent-pixel.gif":   "",
+	}
+	for in, want := range cases {
+		if got := upgradeImage(in); got != want {
+			t.Errorf("upgradeImage(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestNormImages(t *testing.T) {
+	in := []string{
+		"https://m.media-amazon.com/images/I/aaa._SL500_.jpg",
+		"https://images-na.ssl-images-amazon.com/images/I/aaa._SL1000_.jpg", // same photo, other CDN
+		"https://m.media-amazon.com/images/I/bbb._AC_SX466_.jpg",
+		"data:image/gif;base64,zz", // junk, dropped
+		"",                         // empty, dropped
+	}
+	out := normImages(in)
+	if len(out) != 2 {
+		t.Fatalf("normImages = %v", out)
+	}
+	if out[0] != "https://m.media-amazon.com/images/I/aaa.jpg" || out[1] != "https://m.media-amazon.com/images/I/bbb.jpg" {
+		t.Errorf("normImages = %v", out)
+	}
+}
+
 func TestDetectBlocked(t *testing.T) {
 	if !DetectBlocked([]byte(`<html><title>Robot Check</title><form action="/errors/validateCaptcha"></form></html>`)) {
 		t.Error("captcha page should be detected as blocked")
