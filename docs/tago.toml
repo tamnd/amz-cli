@@ -1,0 +1,10 @@
+title       = "amz"
+baseURL     = "https://amz-cli.tamnd.com/"
+description = "A delightful command line for Amazon.com. One binary that crawls every public Amazon surface, products, search, reviews, Q&A, offers, charts, categories, brands, sellers, authors, and deals, and turns it into rich, structured data."
+contentDir  = "content"
+outputDir   = "public"
+theme       = "tago-doks"
+syntaxHighlight = "true"
+
+[params]
+github = "https://github.com/tamnd/amz-cli"
