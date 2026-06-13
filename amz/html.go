@@ -1,12 +1,27 @@
 package amz
 
 import (
+	"bytes"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 )
+
+// newDocument parses an HTML body and strips the nodes whose text content would
+// otherwise pollute a field: inline scripts and styles concatenate into
+// goquery's .Text(), so a block like #availability that carries an AOD loader
+// script would leak JavaScript into the value. JSON-LD scripts are kept because
+// the product parser reads structured data out of them.
+func newDocument(body []byte) (*goquery.Document, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	doc.Find(`script:not([type="application/ld+json"]), style, noscript`).Remove()
+	return doc, nil
+}
 
 var (
 	numRe      = regexp.MustCompile(`[\d.,]+`)

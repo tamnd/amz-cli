@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"regexp"
 	"time"
@@ -31,7 +30,7 @@ func (c *Client) FetchCategory(ctx context.Context, nodeOrURL string) (Category,
 	if err != nil {
 		return Category{}, err
 	}
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return Category{}, err
 	}

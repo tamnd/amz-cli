@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"strconv"
 	"strings"
@@ -86,7 +85,7 @@ func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node 
 }
 
 func (c *Client) parseChart(listType, category, node string, body []byte, rankOffset int) []BestsellerEntry {
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return nil
 	}

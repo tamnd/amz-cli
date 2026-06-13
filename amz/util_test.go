@@ -42,16 +42,17 @@ func TestParsePrice(t *testing.T) {
 
 func TestUpgradeImage(t *testing.T) {
 	cases := map[string]string{
-		"https://m.media-amazon.com/images/I/71abcID._AC_SX466_.jpg":               "https://m.media-amazon.com/images/I/71abcID.jpg",
-		"https://images-na.ssl-images-amazon.com/images/I/71abcID._SL1000_.jpg":    "https://m.media-amazon.com/images/I/71abcID.jpg",
-		"https://m.media-amazon.com/images/I/71abcID._SX38_SY50_CR,0,0,38,50_.jpg": "https://m.media-amazon.com/images/I/71abcID.jpg",
-		"https://m.media-amazon.com/images/I/71abcID.jpg":                          "https://m.media-amazon.com/images/I/71abcID.jpg",
-		"//images-na.ssl-images-amazon.com/images/I/71abcID._SL500_.jpg":           "https://m.media-amazon.com/images/I/71abcID.jpg",
-		"https://m.media-amazon.com/images/I/71abcID._AC_.jpg?x=1":                 "https://m.media-amazon.com/images/I/71abcID.jpg",
-		"https://example.com/logo.png":                                             "https://example.com/logo.png",
-		"data:image/gif;base64,R0lGODlh":                                           "",
-		"https://m.media-amazon.com/images/G/01/x-locale/sprites/foo._CB1_.png":    "",
-		"https://images-na.ssl-images-amazon.com/images/I/transparent-pixel.gif":   "",
+		"https://m.media-amazon.com/images/I/71abcID._AC_SX466_.jpg":                                                  "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://images-na.ssl-images-amazon.com/images/I/71abcID._SL1000_.jpg":                                       "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://m.media-amazon.com/images/I/71abcID._SX38_SY50_CR,0,0,38,50_.jpg":                                    "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://m.media-amazon.com/images/I/71abcID.jpg":                                                             "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"//images-na.ssl-images-amazon.com/images/I/71abcID._SL500_.jpg":                                              "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://m.media-amazon.com/images/I/71abcID._AC_.jpg?x=1":                                                    "https://m.media-amazon.com/images/I/71abcID.jpg",
+		"https://example.com/logo.png":                                                                                "https://example.com/logo.png",
+		"data:image/gif;base64,R0lGODlh":                                                                              "",
+		"https://m.media-amazon.com/images/G/01/x-locale/sprites/foo._CB1_.png":                                       "",
+		"https://images-na.ssl-images-amazon.com/images/I/transparent-pixel.gif":                                      "",
+		"https://m.media-amazon.com/images/I/410cDFU7CXL._CR0,0,35,46_BG85,85,85_BR-120_PKdp-play-icon-overlay__.jpg": "",
 	}
 	for in, want := range cases {
 		if got := upgradeImage(in); got != want {

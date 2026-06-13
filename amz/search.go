@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"net/url"
 	"strconv"
@@ -111,7 +110,7 @@ func (c *Client) Search(ctx context.Context, query string, q SearchQuery, emit f
 }
 
 func (c *Client) parseSearch(body []byte) ([]Card, error) {
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"regexp"
@@ -67,7 +66,7 @@ func cleanRankCategory(s string) string {
 }
 
 func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return Product{}, err
 	}

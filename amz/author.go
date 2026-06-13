@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"time"
@@ -31,7 +30,7 @@ func (c *Client) FetchAuthor(ctx context.Context, slugOrURL string) (Author, err
 	if err != nil {
 		return Author{}, err
 	}
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return Author{}, err
 	}
