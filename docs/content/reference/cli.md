@@ -15,6 +15,7 @@ These persistent flags work on every command:
 | --- | --- | --- |
 | `-m`, `--marketplace` | `us` | storefront slug |
 | `-o`, `--output` | `auto` | `table\|json\|jsonl\|csv\|tsv\|url\|raw` |
+| `--color` | `auto` | colorize output: `auto\|always\|never` |
 | `--fields` | | comma-separated columns to show |
 | `-n`, `--limit` | `0` | cap results (0 = unlimited) |
 | `-O`, `--out` | | write output to a file |
