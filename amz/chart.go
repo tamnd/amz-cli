@@ -46,6 +46,7 @@ const chartMaxPages = 10
 // numbering even when amazon drops the rank badges.
 func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node string, limit int, emit func(BestsellerEntry) error) error {
 	count := 0
+	seen := make(map[string]bool)
 	maxPages := chartMaxPages
 	for page := 1; page <= maxPages; page++ {
 		u := c.ChartURL(kind, category, node, page)
@@ -60,7 +61,13 @@ func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node 
 		if len(entries) == 0 {
 			break
 		}
+		fresh := 0
 		for _, e := range entries {
+			if seen[e.ASIN] {
+				continue
+			}
+			seen[e.ASIN] = true
+			fresh++
 			count++
 			if err := emit(e); err != nil {
 				return err
@@ -68,6 +75,11 @@ func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node 
 			if limit > 0 && count >= limit {
 				return nil
 			}
+		}
+		// A page that adds nothing new (amazon served a repeat or the last
+		// page again) means we have walked off the end of the chart.
+		if fresh == 0 {
+			break
 		}
 	}
 	return nil
@@ -78,8 +90,29 @@ func (c *Client) parseChart(listType, category, node string, body []byte, rankOf
 	if err != nil {
 		return nil
 	}
+	// Amazon nests a .zg-grid-general-faceout inside each #gridItemRoot, so a
+	// combined selector would match every item twice: once on the outer node
+	// that carries the rank badge and once on the inner faceout that does not.
+	// Pick the first layout that matches and iterate only that, newest grid
+	// layout first, so each product yields exactly one entry.
+	var items *goquery.Selection
+	for _, sel := range []string{
+		"#gridItemRoot",
+		"li.zg-item-immersion",
+		".zg-grid-general-faceout",
+		".p13n-sc-uncoverable-faceout",
+	} {
+		if got := doc.Find(sel); got.Length() > 0 {
+			items = got
+			break
+		}
+	}
+	if items == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
 	var out []BestsellerEntry
-	doc.Find("#gridItemRoot, .zg-grid-general-faceout, li.zg-item-immersion, .p13n-sc-uncoverable-faceout").Each(func(_ int, s *goquery.Selection) {
+	items.Each(func(_ int, s *goquery.Selection) {
 		e := BestsellerEntry{
 			ListType:  listType,
 			Category:  category,
@@ -105,9 +138,10 @@ func (c *Client) parseChart(listType, category, node string, body []byte, rankOf
 		e.Price, _ = ParsePrice(s.Find(".a-price .a-offscreen, .p13n-sc-price").First().Text())
 		e.Rating = parseRating(s.Find(".a-icon-alt").First().Text())
 		e.RatingsCount = parseInt(s.Find(".a-size-small, .a-icon-row .a-size-small").First().Text())
-		if e.ASIN == "" {
+		if e.ASIN == "" || seen[e.ASIN] {
 			return
 		}
+		seen[e.ASIN] = true
 		out = append(out, e)
 	})
 	// Re-rank if amazon omitted badges (rank by document order, offset by page).
