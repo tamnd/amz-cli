@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"text/template"
 )
@@ -94,14 +95,58 @@ func (o *Output) project(r Row) ([]string, []string) {
 			index[c] = r.Vals[i]
 		}
 	}
+	var raw map[string]any // lazily decoded for fields outside the column set
 	cols := make([]string, 0, len(o.fields))
 	vals := make([]string, 0, len(o.fields))
 	for _, f := range o.fields {
 		f = strings.TrimSpace(f)
 		cols = append(cols, f)
-		vals = append(vals, index[f])
+		if v, ok := index[f]; ok {
+			vals = append(vals, v)
+			continue
+		}
+		// Fall back to the record's own JSON so any scraped field is reachable
+		// by name, not just the handful promoted to table columns.
+		if raw == nil && r.Value != nil {
+			raw = map[string]any{}
+			if b, err := json.Marshal(r.Value); err == nil {
+				_ = json.Unmarshal(b, &raw)
+			}
+		}
+		vals = append(vals, cellString(raw[f]))
 	}
 	return cols, vals
+}
+
+// cellString flattens a decoded JSON value into one table/CSV cell. Scalars
+// render plainly, string lists join with ";", and anything structured (a list
+// of ranks, a spec map) falls back to compact JSON.
+func cellString(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	case bool:
+		return strconv.FormatBool(t)
+	case float64:
+		if t == float64(int64(t)) {
+			return strconv.FormatInt(int64(t), 10)
+		}
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	case []any:
+		parts := make([]string, 0, len(t))
+		for _, e := range t {
+			parts = append(parts, cellString(e))
+		}
+		return strings.Join(parts, ";")
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprint(v)
+		}
+		return string(b)
+	}
 }
 
 // Emit renders one row.

@@ -268,6 +268,34 @@ func TestFetchChart(t *testing.T) {
 	if es[2].RatingsCount != 90112 {
 		t.Errorf("entry2 ratings = %d", es[2].RatingsCount)
 	}
+
+	// Unlimited paging must not duplicate items even though every item nests a
+	// faceout inside its rank-badged container and the fixture server replays
+	// the same page on every request.
+	var all []BestsellerEntry
+	if err := c.FetchChart(context.Background(), ChartBestsellers, "electronics", "", 0, func(e BestsellerEntry) error {
+		all = append(all, e)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("unlimited got %d entries, want 3", len(all))
+	}
+	asins := map[string]int{}
+	ranks := map[int]int{}
+	for _, e := range all {
+		asins[e.ASIN]++
+		ranks[e.Rank]++
+	}
+	for a, n := range asins {
+		if n != 1 {
+			t.Errorf("asin %s appeared %d times", a, n)
+		}
+	}
+	if all[0].Rank != 1 || all[1].Rank != 2 || all[2].Rank != 3 {
+		t.Errorf("ranks not 1,2,3: %d,%d,%d", all[0].Rank, all[1].Rank, all[2].Rank)
+	}
 }
 
 func TestFetchCategory(t *testing.T) {
