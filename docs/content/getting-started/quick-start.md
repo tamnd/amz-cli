@@ -28,12 +28,25 @@ amz product B084DWG2VQ -o json
   "brand": "Amazon",
   "price": 49.99,
   "currency": "USD",
+  "list_price": 59.99,
+  "savings_pct": 16,
   "rating": 4.7,
-  "rating_count": 284512,
+  "ratings_count": 284512,
   "availability": "In Stock",
-  "sales_rank": 3
+  "in_stock": true,
+  "images": ["https://m.media-amazon.com/images/I/71x...jpg"],
+  "rank": 3,
+  "rank_category": "Electronics",
+  "ranks": [
+    { "rank": 3, "category": "Electronics" },
+    { "rank": 1, "category": "Smart Speakers" }
+  ]
 }
 ```
+
+That is a trimmed view; a real record carries every field the page exposed,
+from `coupon` and `bought_past_month` to `specs` and `ships_from`. The
+[data model](/reference/data-model/) lists them all.
 
 You can pass a full URL instead of an ASIN, and amz pulls the ASIN out of it:
 
@@ -113,5 +126,7 @@ You have the core loop. From here:
 - [Products](/guides/products/) goes deep on the product record and variations.
 - [Search](/guides/search/) covers every refinement.
 - [Reviews and Q&A](/guides/reviews-and-qa/) covers the social-proof surfaces.
+- [Recipes](/guides/recipes/) chains commands into real pipelines.
 - [Crawling at scale](/guides/crawling/) covers the queue and the local store.
+- The [data model](/reference/data-model/) names every field of every record.
 - The [CLI reference](/reference/cli/) lists every command and flag.

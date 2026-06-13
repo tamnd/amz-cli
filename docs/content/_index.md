@@ -27,9 +27,10 @@ queue; without it, amz still fetches and prints everything.
 ## What you can do with it
 
 - **Look up products.** `amz product` fetches a detail page and normalizes
-  title, brand, price, rating, availability, feature bullets, technical
-  specifications, images, breadcrumb, variations, and sales rank into one
-  record, reading both the JSON-LD block and the HTML.
+  title, brand, price and savings, rating, availability, feature bullets,
+  technical specifications, full-resolution images and videos, breadcrumb,
+  variations, the seller, and every Best Sellers Rank into one record, reading
+  both the JSON-LD block and the HTML.
 - **Search the catalog.** Stream result cards with refinements for sort, price
   range, rating, Prime, brand, and department, page after page.
 - **Read the social proof.** Stream the full review corpus with star, verified,
@@ -46,5 +47,8 @@ queue; without it, amz still fetches and prints everything.
   the mental model, then the [quick start](/getting-started/quick-start/).
 - Want to install it? See [installation](/getting-started/installation/).
 - Looking for a specific task? The [guides](/guides/) cover products, search,
-  reviews and Q&A, offers, charts, and crawling at scale.
+  reviews and Q&A, offers, charts, crawling at scale, and a page of
+  [recipes](/guides/recipes/).
+- Need the exact shape of a record? The [data model](/reference/data-model/)
+  names every field of every surface.
 - Need every flag? The [CLI reference](/reference/cli/) is the full surface.

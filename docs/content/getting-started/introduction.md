@@ -7,9 +7,11 @@ weight: 10
 amz is a single command-line tool that reads the public pages of Amazon's
 storefronts and turns each one into a clean, structured record. Where a browser
 shows you a product page, amz gives you the same product as JSON: title, brand,
-price, currency, rating, review count, availability, feature bullets, technical
-specifications, images, breadcrumb, variations, and sales rank, all named and
-typed.
+price, list price and savings, coupons, rating and review counts, availability,
+feature bullets, technical specifications, full-resolution images and videos,
+breadcrumb, variations, the seller and where it ships from, and every Best
+Sellers Rank, all named and typed. The
+[data model](/reference/data-model/) names every field of every record.
 
 ## The mental model
 
