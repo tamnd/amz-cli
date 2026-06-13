@@ -123,13 +123,31 @@ func (c *Client) parseSearch(body []byte) ([]Card, error) {
 		}
 		card := Card{ASIN: asin, Currency: c.mkt.Currency, URL: c.ProductURL(asin)}
 		card.Title = collapseSpace(s.Find("h2 span, h2 a span, .a-size-medium.a-color-base.a-text-normal").First().Text())
-		card.Price, _ = ParsePrice(s.Find(".a-price .a-offscreen").First().Text())
+		card.Price, _ = ParsePrice(s.Find(".a-price:not(.a-text-price) .a-offscreen").First().Text())
+		if card.Price == 0 {
+			card.Price, _ = ParsePrice(s.Find(".a-price .a-offscreen").First().Text())
+		}
+		// The struck-through list/was price carries a-text-price.
+		card.ListPrice, _ = ParsePrice(s.Find(".a-price.a-text-price .a-offscreen, .a-text-price[data-a-strike='true'] .a-offscreen").First().Text())
 		card.Rating = parseRating(s.Find(".a-icon-alt").First().Text())
 		card.RatingsCount = parseInt(s.Find(".a-size-base.s-underline-text, .a-size-base.puis-normal-weight-text").First().Text())
-		card.Image, _ = s.Find("img.s-image").First().Attr("src")
+		card.Image = upgradeImage(attrOf(s.Find("img.s-image").First(), "src"))
 		if s.Find(".puis-sponsored-label-text, .s-sponsored-label-text").Length() > 0 {
 			card.Sponsored = true
 		}
+		if s.Find(".a-icon-prime, [aria-label='Amazon Prime']").Length() > 0 {
+			card.Prime = true
+		}
+		card.Badge = collapseSpace(s.Find(".a-badge-text, .puis-badge-text").First().Text())
+		// "N+ bought in past month" social-proof line.
+		s.Find("span").EachWithBreak(func(_ int, sp *goquery.Selection) bool {
+			t := collapseSpace(sp.Text())
+			if strings.Contains(strings.ToLower(t), "bought in past month") {
+				card.BoughtPastMonth = t
+				return false
+			}
+			return true
+		})
 		card.Kind = "search"
 		cards = append(cards, card)
 	})

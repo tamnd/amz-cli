@@ -19,9 +19,13 @@ them.
 
 ## The card
 
-Each result is a `Card`: `position`, `asin`, `title`, `price`, `currency`,
-`rating`, `ratings_count`, `image`, `sponsored`, and `url`. Sponsored placements
-are flagged, not hidden, so you can keep or drop them yourself:
+Each result is a `Card`: `position`, `asin`, `title`, `price`, `list_price`,
+`currency`, `rating`, `ratings_count`, `image`, `badge`, `prime`,
+`bought_past_month`, `sponsored`, and `url`. `list_price` carries the
+struck-through price when the card is discounted, `badge` holds "Amazon's
+Choice" / "Best Seller" style tags, and `prime` flags Prime eligibility.
+Sponsored placements are flagged, not hidden, so you can keep or drop them
+yourself:
 
 ```bash
 amz search "usb c cable" -o jsonl | grep -v '"sponsored":true'

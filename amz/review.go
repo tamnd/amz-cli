@@ -115,6 +115,7 @@ func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
 				r.Images = append(r.Images, src)
 			}
 		})
+		r.Images = normImages(r.Images)
 		if strip := strings.TrimSpace(s.Find(`[data-hook="format-strip"]`).First().Text()); strip != "" {
 			r.VariantAttrs = parseVariantStrip(strip)
 		}

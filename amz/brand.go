@@ -42,8 +42,8 @@ func (c *Client) FetchBrand(ctx context.Context, slugOrURL string) (Brand, error
 		b.Name = collapseSpace(v)
 	}
 	b.Description = collapseSpace(attr(doc, "meta[name='description']", "content"))
-	b.LogoURL = attr(doc, "#brandLogoImage img, img#brandLogo", "src")
-	b.BannerURL = attr(doc, "meta[property='og:image']", "content")
+	b.LogoURL = upgradeImage(attr(doc, "#brandLogoImage img, img#brandLogo", "src"))
+	b.BannerURL = upgradeImage(attr(doc, "meta[property='og:image']", "content"))
 	doc.Find("a[href*='/dp/']").Each(func(_ int, s *goquery.Selection) {
 		if href, ok := s.Attr("href"); ok {
 			if a := ExtractASIN(href); a != "" {

@@ -47,6 +47,25 @@ func (c *Client) FetchProduct(ctx context.Context, asinOrURL string) (Product, e
 
 var rankRe = regexp.MustCompile(`#([\d,]+)\s+in\s+([^(#\n]+)`)
 
+// stripParen drops a trailing "(See Top 100 ...)" clause from a rank category.
+// availabilityOutOfStock reports whether an availability line means "can't buy".
+func availabilityOutOfStock(s string) bool {
+	l := strings.ToLower(s)
+	for _, neg := range []string{"unavailable", "out of stock", "not in stock", "sold out", "no longer available"} {
+		if strings.Contains(l, neg) {
+			return true
+		}
+	}
+	return false
+}
+
+func cleanRankCategory(s string) string {
+	if i := strings.Index(s, "("); i >= 0 {
+		s = s[:i]
+	}
+	return collapseSpace(s)
+}
+
 func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
@@ -88,6 +107,16 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 		lp := firstNonEmptyText(doc, ".basisPrice .a-offscreen", "span.a-price.a-text-price .a-offscreen", "#listPrice")
 		p.ListPrice, _ = ParsePrice(lp)
 	}
+	// Savings derive from list vs current price.
+	if p.ListPrice > p.Price && p.Price > 0 {
+		p.Savings = round2(p.ListPrice - p.Price)
+		p.SavingsPct = int((1 - p.Price/p.ListPrice) * 100)
+	}
+	// Coupon (clip/percent/amount), shown next to the price.
+	p.Coupon = collapseSpace(firstNonEmptyText(doc,
+		"#promoPriceBlockMessage_feature_div .a-color-success",
+		".couponLabelText", "#couponText", "#vpcButton .a-color-success",
+		"label[id^='couponText']"))
 	if p.Rating == 0 {
 		p.Rating = parseRating(attr(doc, "#acrPopover", "title"))
 		if p.Rating == 0 {
@@ -98,7 +127,13 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 		p.RatingsCount = parseInt(text(doc, "#acrCustomerReviewText"))
 	}
 	p.AnsweredQs = int(parseInt(text(doc, "#askATFLink")))
+	p.BoughtPastMonth = collapseSpace(firstNonEmptyText(doc,
+		"#social-proofing-faceout-title-tk_bought .a-text-bold",
+		"#socialProofingAsinFaceout_feature_div", "[data-csa-c-content-id='social-proofing-faceout']"))
 	p.Availability = collapseSpace(firstNonEmptyText(doc, "#availability span", "#availability"))
+	if p.Availability != "" {
+		p.InStock = !availabilityOutOfStock(p.Availability)
+	}
 	if p.Description == "" {
 		p.Description = collapseSpace(firstNonEmptyText(doc, "#productDescription p", "#productDescription", "#bookDescription_feature_div"))
 	}
@@ -129,21 +164,36 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 		}
 	})
 
-	// Images from the dynamic-image JSON map.
-	if dyn := attr(doc, "#imgBlkFront, #landingImage", "data-a-dynamic-image"); dyn != "" {
-		var m map[string][]int
-		if json.Unmarshal([]byte(dyn), &m) == nil {
-			for k := range m {
-				p.Images = append(p.Images, k)
+	// Images: the hero's dynamic-image map plus the alt-image thumbnail rail.
+	// Every URL is canonicalized to full resolution and deduped, so the many
+	// size variants of one photo collapse to a single master image.
+	doc.Find("#imgBlkFront, #landingImage, #main-image-container img").Each(func(_ int, s *goquery.Selection) {
+		if dyn, ok := s.Attr("data-a-dynamic-image"); ok && dyn != "" {
+			var m map[string][]int
+			if json.Unmarshal([]byte(dyn), &m) == nil {
+				for k := range m {
+					p.Images = append(p.Images, k)
+				}
 			}
 		}
-	}
-	doc.Find("#altImages img").Each(func(_ int, s *goquery.Selection) {
+		if src, ok := s.Attr("data-old-hires"); ok {
+			p.Images = append(p.Images, src)
+		}
+	})
+	doc.Find("#altImages img, #imageBlockThumbs img").Each(func(_ int, s *goquery.Selection) {
 		if src, ok := s.Attr("src"); ok {
 			p.Images = append(p.Images, src)
 		}
 	})
-	p.Images = dedup(p.Images)
+	p.Images = normImages(p.Images)
+
+	// Inline product videos (slate thumbnails carry the mp4 url).
+	doc.Find("[data-video-url], #vse-related-videos-container [data-video-url]").Each(func(_ int, s *goquery.Selection) {
+		if src, ok := s.Attr("data-video-url"); ok && strings.TrimSpace(src) != "" {
+			p.Videos = append(p.Videos, strings.TrimSpace(src))
+		}
+	})
+	p.Videos = dedup(p.Videos)
 
 	// Breadcrumb category path.
 	doc.Find("#wayfinding-breadcrumbs_feature_div li a").Each(func(_ int, s *goquery.Selection) {
@@ -178,6 +228,23 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 			}
 		}
 	})
+	// "Ships from" is labelled in the tabular buybox; fall back to the free-text
+	// merchant-info line ("Ships from Amazon.com Sold by ...").
+	doc.Find("#tabular-buybox .tabular-buybox-text-message, #tabular-buybox tr").Each(func(_ int, s *goquery.Selection) {
+		label := collapseSpace(s.Find(".tabular-buybox-text:first-child, td:first-child").Text())
+		if strings.EqualFold(label, "Ships from") {
+			if v := collapseSpace(s.Find(".tabular-buybox-text").Last().Text()); v != "" && !strings.EqualFold(v, label) {
+				p.ShipsFrom = v
+			}
+		}
+	})
+	if p.ShipsFrom == "" {
+		if mi := collapseSpace(text(doc, "#merchant-info")); mi != "" {
+			if m := regexp.MustCompile(`(?i)ships?\s+from\s+(.+?)(?:\s+sold by\b|$)`).FindStringSubmatch(mi); m != nil {
+				p.ShipsFrom = collapseSpace(m[1])
+			}
+		}
+	}
 
 	// Variants.
 	doc.Find("li[data-asin], #variation_color_name a, #variation_size_name a").Each(func(_ int, s *goquery.Selection) {
@@ -205,17 +272,26 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 	})
 	p.SimilarASINs = dedup(p.SimilarASINs)
 
-	// Best-sellers rank.
-	doc.Find("#detailBulletsWrapper_feature_div li, #productDetails_detailBullets_sections1 tr").Each(func(_ int, s *goquery.Selection) {
+	// Best-sellers rank. A product carries one overall rank plus a rank in each
+	// subcategory; capture them all, with the overall (first) also kept flat.
+	doc.Find("#detailBulletsWrapper_feature_div li, #productDetails_detailBullets_sections1 tr, #detailBullets_feature_div li").Each(func(_ int, s *goquery.Selection) {
 		t := s.Text()
 		if !strings.Contains(t, "Best Sellers Rank") && !strings.Contains(t, "Amazon Best Sellers Rank") {
 			return
 		}
-		if m := rankRe.FindStringSubmatch(t); m != nil && p.Rank == 0 {
-			p.Rank, _ = strconv.Atoi(strings.ReplaceAll(m[1], ",", ""))
-			p.RankCategory = collapseSpace(m[2])
+		for _, m := range rankRe.FindAllStringSubmatch(t, -1) {
+			n, _ := strconv.Atoi(strings.ReplaceAll(m[1], ",", ""))
+			cat := cleanRankCategory(m[2])
+			if n == 0 || cat == "" {
+				continue
+			}
+			p.Ranks = append(p.Ranks, ProductRank{Rank: n, Category: cat})
 		}
 	})
+	if len(p.Ranks) > 0 {
+		p.Rank = p.Ranks[0].Rank
+		p.RankCategory = p.Ranks[0].Category
+	}
 
 	if len(p.Specs) == 0 {
 		p.Specs = nil
@@ -273,6 +349,12 @@ func applyProductJSONLD(doc *goquery.Document, p *Product) {
 				p.Currency = cur
 			}
 		}
+		if p.Availability == "" {
+			if a := offerAvailability(ld.Offers); a != "" {
+				p.Availability = a
+			}
+		}
+		p.Images = append(p.Images, jsonLDImages(ld.Image)...)
 		return false
 	})
 }
@@ -322,6 +404,50 @@ func offerPrice(o any) (float64, string) {
 		}
 	}
 	return 0, ""
+}
+
+// offerAvailability pulls a schema.org availability term ("InStock") out of an
+// offer node and renders it human-readable.
+func offerAvailability(o any) string {
+	avail := func(m map[string]any) string {
+		s, _ := m["availability"].(string)
+		if i := strings.LastIndexAny(s, "/#"); i >= 0 {
+			s = s[i+1:]
+		}
+		return s
+	}
+	switch v := o.(type) {
+	case map[string]any:
+		return avail(v)
+	case []any:
+		for _, e := range v {
+			if m, ok := e.(map[string]any); ok {
+				if a := avail(m); a != "" {
+					return a
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// jsonLDImages flattens the JSON-LD image field (string, list, or ImageObject).
+func jsonLDImages(img any) []string {
+	switch v := img.(type) {
+	case string:
+		return []string{v}
+	case []any:
+		var out []string
+		for _, e := range v {
+			out = append(out, jsonLDImages(e)...)
+		}
+		return out
+	case map[string]any:
+		if u, ok := v["url"].(string); ok {
+			return []string{u}
+		}
+	}
+	return nil
 }
 
 func toFloat(v any) float64 {

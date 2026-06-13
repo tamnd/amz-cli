@@ -76,6 +76,11 @@ func parseInt(s string) int64 {
 	return v
 }
 
+// round2 rounds to two decimals, the precision Amazon prices carry.
+func round2(v float64) float64 {
+	return float64(int64(v*100+0.5)) / 100
+}
+
 // parseRating pulls "4.5" out of "4.5 out of 5 stars".
 func parseRating(s string) float64 {
 	if m := ratingRe.FindStringSubmatch(s); m != nil {
@@ -108,6 +113,12 @@ func firstNonEmptyText(doc *goquery.Document, sels ...string) string {
 // attr returns the attribute value of the first match of sel.
 func attr(doc *goquery.Document, sel, name string) string {
 	v, _ := doc.Find(sel).First().Attr(name)
+	return strings.TrimSpace(v)
+}
+
+// attrOf returns a trimmed attribute value of a single selection.
+func attrOf(s *goquery.Selection, name string) string {
+	v, _ := s.Attr(name)
 	return strings.TrimSpace(v)
 }
 

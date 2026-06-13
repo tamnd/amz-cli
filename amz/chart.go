@@ -36,10 +36,18 @@ func (c *Client) ChartURL(kind ChartKind, category, node string, page int) strin
 	return u
 }
 
-// FetchChart streams ranked entries from a chart, across its (usually two) pages.
+// chartMaxPages caps chart paging so a malformed list can't loop forever.
+// Amazon charts top out at 100 items (two 50-item pages) today, but we page
+// until a page comes back empty rather than assuming the count.
+const chartMaxPages = 10
+
+// FetchChart streams ranked entries from a chart, paging until a page is empty
+// (or the limit is reached). Ranks are offset by page so page two continues the
+// numbering even when amazon drops the rank badges.
 func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node string, limit int, emit func(BestsellerEntry) error) error {
 	count := 0
-	for page := 1; page <= 2; page++ {
+	maxPages := chartMaxPages
+	for page := 1; page <= maxPages; page++ {
 		u := c.ChartURL(kind, category, node, page)
 		body, err := c.Get(ctx, u, time.Hour)
 		if err != nil {
@@ -48,7 +56,7 @@ func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node 
 			}
 			return err
 		}
-		entries := c.parseChart(string(kind), category, node, body)
+		entries := c.parseChart(string(kind), category, node, body, count)
 		if len(entries) == 0 {
 			break
 		}
@@ -65,7 +73,7 @@ func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node 
 	return nil
 }
 
-func (c *Client) parseChart(listType, category, node string, body []byte) []BestsellerEntry {
+func (c *Client) parseChart(listType, category, node string, body []byte, rankOffset int) []BestsellerEntry {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
 		return nil
@@ -105,7 +113,7 @@ func (c *Client) parseChart(listType, category, node string, body []byte) []Best
 	// Re-rank if amazon omitted badges (rank by document order, offset by page).
 	for i := range out {
 		if out[i].Rank == 0 {
-			out[i].Rank = i + 1
+			out[i].Rank = rankOffset + i + 1
 		}
 	}
 	return out

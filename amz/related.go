@@ -53,7 +53,7 @@ func (c *Client) FetchRelated(ctx context.Context, asin string, limit int, emit 
 		card.Price, _ = ParsePrice(s.Find(".a-price .a-offscreen, .p13n-sc-price").First().Text())
 		card.Rating = parseRating(s.Find(".a-icon-alt").First().Text())
 		card.RatingsCount = parseInt(s.Find(".a-size-small").First().Text())
-		card.Image = attrSel(s, "img", "src")
+		card.Image = upgradeImage(attrSel(s, "img", "src"))
 		return emitCard(card)
 	})
 	return perr
