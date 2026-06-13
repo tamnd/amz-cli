@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/hex"
@@ -35,7 +34,7 @@ func (c *Client) FetchQA(ctx context.Context, asin string, emit func(QA) error) 
 	if err != nil {
 		return err
 	}
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return err
 	}

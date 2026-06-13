@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"time"
@@ -31,7 +30,7 @@ func (c *Client) FetchBrand(ctx context.Context, slugOrURL string) (Brand, error
 	if err != nil {
 		return Brand{}, err
 	}
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return Brand{}, err
 	}

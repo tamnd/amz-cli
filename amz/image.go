@@ -33,7 +33,12 @@ func upgradeImage(u string) string {
 	}
 	low := strings.ToLower(u)
 	if strings.Contains(low, "pixel") || strings.Contains(low, "transparent") ||
-		strings.Contains(low, "/sprites/") || strings.HasSuffix(low, ".svg") {
+		strings.Contains(low, "/sprites/") || strings.HasSuffix(low, ".svg") ||
+		strings.Contains(low, "play-icon") || strings.Contains(low, "play-button") ||
+		strings.Contains(low, "overlay") {
+		// Video gallery thumbnails carry a composited play badge ("...PKdp-
+		// play-icon-overlay__.jpg"); they are not product photos, and the video
+		// itself is captured separately, so drop them.
 		return ""
 	}
 	slash := strings.LastIndex(u, "/")

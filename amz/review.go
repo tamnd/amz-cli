@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"crypto/md5"
 	"encoding/hex"
@@ -87,7 +86,7 @@ func (c *Client) FetchReviews(ctx context.Context, asin string, q ReviewQuery, e
 }
 
 func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return nil
 	}

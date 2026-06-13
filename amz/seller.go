@@ -1,7 +1,6 @@
 package amz
 
 import (
-	"bytes"
 	"context"
 	"regexp"
 	"strings"
@@ -35,7 +34,7 @@ func (c *Client) FetchSeller(ctx context.Context, idOrURL string) (Seller, error
 	if err != nil {
 		return Seller{}, err
 	}
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := newDocument(body)
 	if err != nil {
 		return Seller{}, err
 	}
