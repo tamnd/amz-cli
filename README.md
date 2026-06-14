@@ -1,151 +1,189 @@
 # amz
 
-A delightful command line for [Amazon.com](https://www.amazon.com). One binary
-that reads every public Amazon surface, products, search, reviews, Q&A, offers,
-charts, categories, brands, sellers, authors, and deals, and turns each one into
-rich, structured data.
+[![CI](https://github.com/tamnd/amz-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/tamnd/amz-cli/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/tamnd/amz-cli)](https://github.com/tamnd/amz-cli/releases/latest)
+[![Go Reference](https://pkg.go.dev/badge/github.com/tamnd/amz-cli.svg)](https://pkg.go.dev/github.com/tamnd/amz-cli)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tamnd/amz-cli)](https://goreportcard.com/report/github.com/tamnd/amz-cli)
+[![License](https://img.shields.io/github/license/tamnd/amz-cli)](./LICENSE)
 
-```
-amz product B084DWG2VQ -o json
-```
+A command line for Amazon. `amz` reads every public Amazon surface — products,
+search, reviews, Q&A, offers, charts, categories, brands, sellers, authors, and
+deals — and turns each one into clean, pipeable records. One pure-Go binary, no
+API key required.
 
-```json
-{
-  "asin": "B084DWG2VQ",
-  "title": "Echo Dot (4th Gen) | Smart speaker with Alexa | Charcoal",
-  "brand": "Amazon",
-  "price": 49.99,
-  "currency": "USD",
-  "rating": 4.7,
-  "ratings_count": 284512,
-  "availability": "In Stock",
-  "rank": 3
-}
-```
+[Install](#install) • [Commands](#commands) • [Usage](#usage) • [Access tiers](#access-tiers)
 
-Full documentation: [amz-cli.tamnd.com](https://amz-cli.tamnd.com).
+![amz reading Amazon bestsellers as a table and piping through jq](docs/static/demo.gif)
 
-## Why
+It reads the public pages on `amazon.com` over plain HTTPS, extracts the JSON-LD
+Amazon marks up for machines, and falls back to precise HTML selectors so each
+record is rich with no missing fields where the page had them. Every request is
+paced, retried on transient failures, and cached on disk. When Amazon serves a
+bot-check page instead of content, `amz` detects it and exits with a distinct
+code rather than handing you garbage.
 
-Pulling structured data out of Amazon usually means a pile of brittle scrapers,
-one per page type, each breaking the next time a selector moves. amz puts all of
-it behind one tool with sensible defaults, real output formats, and pipelines
-that compose. It reads the public pages on `amazon.com` over plain HTTPS, reads
-the JSON-LD Amazon marks up for machines, and falls back to precise HTML
-selectors so each record is rich with no missing fields where the page had them.
+`amz` is an independent tool. It is not affiliated with or endorsed by Amazon.
 
 ## Install
 
-```sh
+```bash
 go install github.com/tamnd/amz-cli/cmd/amz@latest
 ```
 
-Or grab a prebuilt binary from the [releases page](https://github.com/tamnd/amz-cli/releases).
-The binary is pure Go with no runtime dependencies. DuckDB is optional and only
-needed for the local store and crawl queue.
+Or grab a prebuilt binary from the [releases](https://github.com/tamnd/amz-cli/releases),
+or run the container image:
 
-Build from source:
-
-```sh
-git clone https://github.com/tamnd/amz-cli
-cd amz-cli
-make build      # produces ./bin/amz
+```bash
+docker run --rm ghcr.io/tamnd/amz:latest bestsellers electronics -n 10
 ```
 
-## Quick start
-
-```sh
-amz product B084DWG2VQ                 # one product, fully normalized
-amz search "mechanical keyboard"       # catalog result cards
-amz reviews B084DWG2VQ --stars 1       # the one-star reviews
-amz offers B084DWG2VQ                  # every buying option
-amz bestsellers electronics            # the live top-100 chart
-amz product B084DWG2VQ -m uk           # any of 16 marketplaces
-```
-
-## How it works
-
-Every Amazon page type is a surface, and amz has one command per surface. Each
-command builds the canonical URL for the marketplace you picked, fetches it
-politely (rotating user agent, rate limit, retry with backoff, on-disk cache),
-then parses twice: the embedded JSON-LD first, then the HTML to fill any gaps.
-The result is one normalized record. When Amazon serves its bot-check page
-instead of content, amz detects it and exits with a distinct code rather than
-handing you garbage.
+Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 
 ## Commands
 
-| Command | What it does |
+| Command | Reads |
 | --- | --- |
-| `product` | Normalize one or more product detail pages |
-| `price` | Print just the current price |
-| `related` | Recommendation cards off a detail page |
-| `search` | Search the catalog and stream result cards |
-| `reviews` | Stream the review corpus |
-| `qa` | Question-and-answer pairs |
-| `offers` | Every buying option for an ASIN |
-| `bestsellers` / `new-releases` / `movers` / `wished` / `gifted` | The five charts |
-| `category` | A browse node: name, breadcrumb, children, top ASINs |
-| `brand` | A brand storefront |
-| `seller` | A third-party seller profile and feedback |
-| `author` | An Author Central page |
-| `deals` | Today's deals grid |
-| `seed` / `crawl` / `db` | Queue and the optional local DuckDB store |
-| `open` / `asin` / `info` / `config` / `cache` | Utilities |
+| `amz product <ASIN\|url>...` | one or more product detail pages, fully normalized |
+| `amz price <ASIN\|url>...` | current price only |
+| `amz related <ASIN>` | recommendation cards from a product page |
+| `amz search <query>` | catalog search result cards |
+| `amz reviews <ASIN>` | the full review corpus; `--stars`, `--sort` |
+| `amz qa <ASIN>` | customer question-and-answer pairs |
+| `amz offers <ASIN>` | every buying option (seller, condition, price) |
+| `amz bestsellers [category]` | the live top-100 chart |
+| `amz new-releases [category]` | newest releases in a category |
+| `amz movers [category]` | biggest 24-hour rank movers |
+| `amz wished [category]` | most wished-for items |
+| `amz gifted [category]` | most gifted items |
+| `amz category <node_id\|url>` | a browse node: name, breadcrumb, children, top ASINs |
+| `amz brand <slug\|url>` | a brand storefront |
+| `amz seller <id\|url>` | a third-party seller profile and rating breakdown |
+| `amz author <slug\|url>` | an Author Central page |
+| `amz deals` | today's deals grid |
+| `amz seed` | enqueue ASINs or URLs into the crawl queue |
+| `amz crawl` | drain the crawl queue into the local store |
+| `amz db query <sql>` | query the optional local DuckDB store |
+| `amz asin <url>...` | extract the ASIN from any Amazon URL |
+| `amz open <ASIN\|query>` | open the relevant Amazon page in the browser |
+| `amz info` | show access tier, marketplace, and config summary |
+| `amz config` | view and manage configuration and PA-API credentials |
+| `amz cache path\|info\|clear` | inspect or clear the on-disk page cache |
 
-Run `amz <command> --help` for the full flag list on any command.
+Full reference and guides live at [amz-cli.tamnd.com](https://amz-cli.tamnd.com).
 
-## Output
+## Usage
 
-Every command streams through one renderer. `-o auto` (the default) prints a
-table on a terminal and JSONL when piped:
-
-```sh
-amz search "usb c cable" -o json      # a JSON array
-amz search "usb c cable" -o jsonl     # one object per line
-amz bestsellers electronics -o csv    # spreadsheet-ready
-amz product B084DWG2VQ -o url         # just the URL
-amz product B084DWG2VQ --fields asin,price,rating -o csv
+```bash
+amz product B084DWG2VQ                     # one product, fully normalized
+amz search "mechanical keyboard" -n 20     # catalog search results
+amz reviews B084DWG2VQ --stars 1           # the one-star reviews
+amz offers B084DWG2VQ                      # every buying option
+amz bestsellers electronics                # the live top-100 chart
+amz category 172282                        # the Electronics browse node
+amz product B084DWG2VQ -m uk              # any of 16 marketplaces
 ```
 
-## Recipes
+Records come out as a table (the default on a terminal), JSON, JSONL, CSV, TSV,
+url, or raw:
+
+```bash
+amz bestsellers electronics --fields rank,title,price,rating -o table
+amz bestsellers electronics -n 20 --fields asin,title,price -o csv
+amz bestsellers electronics -n 10 -o url
+amz product B084DWG2VQ -o json
+amz reviews B084DWG2VQ -o jsonl | jq 'select(.stars <= 2)'
+```
 
 Turn a search into full product records:
 
-```sh
+```bash
 amz search "mechanical keyboard" -n 25 -o url \
   | sed 's#.*/dp/##; s#/.*##' \
   | xargs -I{} amz product {} -o jsonl > keyboards.jsonl
 ```
 
-Collect a category's bestsellers into the local store and query it:
+Collect a category's bestsellers and query the local store:
 
-```sh
+```bash
 amz bestsellers electronics -n 100 -o url | amz seed --file -
 amz crawl
 amz db query "select data->>'brand' brand, count(*) n from products group by brand order by n desc"
 ```
 
-Watch one-star reviews:
+### Global flags
 
-```sh
-amz reviews B084DWG2VQ --stars 1 -o jsonl | wc -l
+```
+-o, --output       table|json|jsonl|csv|tsv|url|raw   (auto: table on a TTY, jsonl when piped)
+    --fields       comma-separated columns to include
+    --no-header    omit the header row in table/csv/tsv
+    --template     Go text/template applied per record
+-n, --limit        max records (0 = unlimited)
+-m, --marketplace  marketplace slug: us|uk|de|fr|jp|ca|in|it|es|... (default us)
+-q, --quiet        suppress progress output
+    --color        auto|always|never
+    --rate         min spacing between requests (default 3s)
+    --timeout      per-request timeout (default 30s)
+    --retries      retry attempts on 429/503 (default 3)
+-j, --workers      concurrency for multi-ASIN and bulk commands (default 2)
+    --no-cache     bypass the on-disk cache
+    --dry-run      print the URL(s) that would be fetched, then stop
 ```
 
 ## Access tiers
 
-amz reads three tiers, selected per run:
+`amz` reads three tiers, selected per run:
 
-- **Public HTML** (default), no setup.
-- **Cookied** (`--cookies file`), lends a signed-in session.
-- **PA-API** (`--api`), the official Product Advertising API 5.0 with
-  credentials, signed locally with SigV4. Same output schema, so scripts do not
-  care which tier produced the record.
+**Public HTML** (the default) reads what a logged-out browser sees. No setup.
+Most commands work here; product pages and search can be gated on residential
+IPs from high-traffic datacenter ranges.
+
+**Cookied** (`--cookies <file>`) lends a signed-in browser session. Pass a
+Netscape-format cookie file exported from your browser to reach pages that
+require a login context.
+
+**PA-API** (`--api`) calls the official Amazon Product Advertising API 5.0,
+signed locally with SigV4. Needs credentials (`amz config set-api`). Returns
+the same output schema as the other tiers, so scripts work unchanged.
 
 ## Exit codes
 
-`0` ok, `1` runtime error, `2` usage, `3` no data, `4` partial, `5` blocked.
+```
+0  success, at least one record
+1  error
+2  usage error
+3  no results
+4  partial results
+5  blocked (bot-check or CAPTCHA; try --cookies, --rate, or --api)
+```
+
+## Development
+
+```
+cmd/amz/    thin main entry point
+cli/        cobra commands and output rendering
+amz/        HTTP client, parsers, models, and marketplace table
+docs/       documentation site (Hugo, tago-doks theme)
+```
+
+```bash
+make build   # ./bin/amz
+make test    # go test ./...
+make vet     # go vet ./...
+```
+
+Requires Go 1.26+.
+
+## Releasing
+
+Push a version tag and GitHub Actions runs GoReleaser:
+
+```bash
+git tag -a v0.2.0 -m "v0.2.0"
+git push --tags
+```
+
+The image tag carries no `v` prefix (`ghcr.io/tamnd/amz:0.2.0`).
 
 ## License
 
-[Apache-2.0](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).
