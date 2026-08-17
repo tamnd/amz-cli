@@ -54,6 +54,51 @@ func TestRelatedNodesSkipTheSiteChrome(t *testing.T) {
 	}
 }
 
+// A /b page never says what it hangs off, so the only upward category edge on
+// amazon.com is the one a rank line draws. Amazon links the subcategory name to
+// its chart and the browse node is in that URL, which makes it an identifier the
+// site stated rather than a name matched against a tree.
+func TestSubcategoryRankCarriesItsBrowseNode(t *testing.T) {
+	body, err := readCapture(filepath.Join(capturesDir, "product_simple.html.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewClient(Config{})
+	p, err := c.parseProduct("B075F5X8BR", "https://www.amazon.com/dp/B075F5X8BR", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Ranks) < 2 {
+		t.Fatalf("ranks = %+v, want the department line and at least one subcategory", p.Ranks)
+	}
+	var linked int
+	for _, r := range p.Ranks {
+		switch {
+		case r.Overall:
+			// The department line links the chart for the whole department,
+			// which carries no node, so there is nothing to resolve and the
+			// record says nothing rather than guessing.
+			if r.Node != nil {
+				t.Errorf("the department rank claims a browse node: %+v", r.Node)
+			}
+		case r.Node != nil:
+			linked++
+			if !r.Node.Resolved || r.Node.Kind != RefNode {
+				t.Errorf("rank node is not a usable reference: %+v", r.Node)
+			}
+			if r.Node.Name != r.Category {
+				t.Errorf("rank node %q is filed under a different category than %q", r.Node.Name, r.Category)
+			}
+			if !strings.HasPrefix(r.Node.URI, "amz:us/node/") {
+				t.Errorf("rank node uri = %q, want it scoped to the marketplace", r.Node.URI)
+			}
+		}
+	}
+	if linked == 0 {
+		t.Error("no subcategory rank carries the browse node Amazon linked it to")
+	}
+}
+
 // Every entity record can point at itself the same way, which is what the graph
 // and the RDF export are going to walk.
 func TestRecordsPointAtThemselves(t *testing.T) {

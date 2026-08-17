@@ -49,3 +49,20 @@ func (b Brand) Ref() *Ref {
 func (a Author) Ref() *Ref {
 	return NewRef(RefAuthor, a.Envelope.Marketplace, a.Slug, a.Name, a.URL)
 }
+
+// resolveRankNodes scopes the browse node on each rank line to a marketplace.
+//
+// The rule that read the lines has the id and the name and no marketplace, so it
+// leaves the reference unresolved and this finishes it, the same way the
+// breadcrumb is finished. A rank in a subcategory is the strongest category edge
+// on a detail page, because Amazon stated the identifier rather than leaving a
+// name to be matched against a browse tree.
+func resolveRankNodes(ranks []Rank, mkt, base string) {
+	for i := range ranks {
+		n := ranks[i].Node
+		if n == nil || n.Resolved {
+			continue
+		}
+		ranks[i].Node = NewRef(RefNode, mkt, n.ID, n.Name, base+"/b?node="+n.ID)
+	}
+}

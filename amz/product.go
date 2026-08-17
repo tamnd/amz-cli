@@ -163,6 +163,7 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 	}
 	if v, ok := e.Value("ranks"); ok {
 		p.Ranks, _ = v.([]Rank)
+		resolveRankNodes(p.Ranks, c.mkt.Slug, c.BaseURL())
 	}
 	p.Rails = readRails(e, c.BaseURL())
 	p.Breadcrumb = breadcrumbRefs(c.mkt.Slug, c.BaseURL(), e.Strings("category_path"), e.Strings("browse_node_ids"))

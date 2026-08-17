@@ -527,12 +527,42 @@ func ASINs(exclude string) FieldRule {
 // is the overall sales rank.
 var rankLineRe = regexp.MustCompile(`#([\d,]+)\s+in\s+([^(#\n]+)(\([^)]*\))?`)
 
+// rankNodeRe is the browse node in the chart link a subcategory rank line wraps
+// its category name in, /gp/bestsellers/electronics/12097478011/ref=x.
+//
+// The department line links the same chart without a node, because the whole
+// department is the chart, so only the subcategory lines yield an identifier and
+// that is the honest outcome rather than a gap.
+var rankNodeRe = regexp.MustCompile(`/(?:gp/bestsellers|zgbs)/[^/]+/(\d+)`)
+
+// rankNodes maps the text of each rank line's chart link to the browse node it
+// points at.
+//
+// The anchor text is the category name Amazon printed in the line, so this is an
+// exact join rather than a guess: the rank regex reads the same words out of the
+// same line. It is done as a second pass because the rank lines are read from
+// the text of the whole block and the hrefs do not survive that.
+func rankNodes(r Region) map[string]string {
+	out := map[string]string{}
+	r.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
+		m := rankNodeRe.FindStringSubmatch(attrOf(s, "href"))
+		if m == nil {
+			return
+		}
+		if t := collapseSpace(s.Text()); t != "" {
+			out[t] = m[1]
+		}
+	})
+	return out
+}
+
 // Ranks reads every Best Sellers Rank line in the region.
 func Ranks() FieldRule {
 	return func(_ *Extractor, r Region) (any, bool) {
 		if !r.Exists() {
 			return nil, false
 		}
+		nodes := rankNodes(r)
 		var out []Rank
 		r.Find("li, tr, span").Each(func(_ int, s *goquery.Selection) {
 			t := nodeText(s)
@@ -550,12 +580,19 @@ func Ranks() FieldRule {
 				// is read here rather than assuming the first line is the
 				// department, because the order Amazon prints them in has moved
 				// before and a positional assumption fails silently when it does.
-				out = append(out, Rank{
+				rk := Rank{
 					Rank:     int(n),
 					Category: cat,
 					Overall:  strings.Contains(m[3], "Top 100"),
 					Via:      r.Name(),
-				})
+				}
+				// The reference is left unresolved here because a rule has no
+				// marketplace to scope a URI to. parseProduct finishes it, the
+				// same way it finishes the breadcrumb.
+				if id := nodes[cat]; id != "" {
+					rk.Node = &Ref{Kind: RefNode, ID: id, Name: cat}
+				}
+				out = append(out, rk)
 			}
 		})
 		out = dedupRanks(out)
