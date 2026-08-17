@@ -36,10 +36,10 @@ product_coupon         product        product    1552245    11     12    270    
 product_no_variants    product        product    1825866    20      7    146       0  
 product_out_of_stock   product        product    2260659    18      7    148       0  
 product_simple         product        product    2379997    30      3    260       0  
-search_deep            search         search     1025013     5      0     17       6  
-search_filtered        search         search     1580893     8      0     17      30  
-search_page1           search         search     1299326     8      0     16      16  
-search_sorted          search         search      900168     8      0     15      18  
+search_deep            search         search     1025013     8      0     16       6  
+search_filtered        search         search     1580893    11      0     16      30  
+search_page1           search         search     1299326    11      0     15      16  
+search_sorted          search         search      900168    11      0     14      18  
 seller_amazon          seller         seller      295932     8      6      0       0  
 seller_rated           seller         seller      334131    14      0      0       5  
 soft_404               product        product       2296     0      0      0       0  not_found

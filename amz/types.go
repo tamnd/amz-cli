@@ -147,6 +147,10 @@ type Card struct {
 	Sponsored bool   `json:"sponsored"`
 	Kind      string `json:"kind,omitempty"`
 	URL       string `json:"url"`
+	// Cells are the partition cells this ASIN was found in, on a --all run. A
+	// result that appears under three brands is one record naming all three
+	// rather than three records that look like three products.
+	Cells []string `json:"cells,omitempty"`
 	// Envelope says which of the card's slots answered and which were absent.
 	// A card that shipped no price and a card whose price slot moved are
 	// different facts and this is where they are told apart.
@@ -178,12 +182,43 @@ type SearchPage struct {
 	// CurrentPage, NextPage and LastPage come from the pagination strip.
 	// LastPage is the highest page Amazon will navigate to rather than the
 	// number of pages the result total implies.
-	CurrentPage int      `json:"page_current,omitempty"`
-	NextPage    int      `json:"page_next,omitempty"`
-	LastPage    int      `json:"page_last,omitempty"`
-	Cards       []Card   `json:"cards,omitempty"`
-	Envelope    Envelope `json:"envelope,omitzero"`
+	CurrentPage int `json:"page_current,omitempty"`
+	NextPage    int `json:"page_next,omitempty"`
+	LastPage    int `json:"page_last,omitempty"`
+	// PageSize is this page's own size, read from its range. It is not a
+	// constant: the same query serves sixteen per page unrefined and twenty-four
+	// once a department narrows it, so a crawl that computed an offset from the
+	// page number would be eight results out from page two onward.
+	PageSize int `json:"page_size,omitempty"`
+	// Refinements is every group the sidebar offered, on every page, never
+	// behind a flag. It is free, it is the vocabulary this package refuses to
+	// hardcode, and it is the input to --partition.
+	Refinements []RefineGroup `json:"available_refinements,omitempty"`
+	// Applied is the refinements the page says are on, read from the sidebar
+	// rather than echoed back from the request.
+	Applied []Refinement `json:"refinements,omitempty"`
+	// Sorts is the sort dropdown as offered, and Sort is the option it marked
+	// selected, which is the page's own answer rather than the flag that was
+	// sent.
+	Sorts []SortOption `json:"sorts,omitempty"`
+	Sort  string       `json:"sort,omitempty"`
+	// Departments is the search scope dropdown, whose aliases differ by location
+	// and are therefore read per marketplace and never compiled in.
+	Departments []Department `json:"departments,omitempty"`
+	// SponsoredCount is how many of the cards below are advertising.
+	SponsoredCount int      `json:"sponsored_count"`
+	Cards          []Card   `json:"cards,omitempty"`
+	Envelope       Envelope `json:"envelope,omitzero"`
 }
+
+// Inverted reports the range running backwards, which is Amazon's own tell that
+// the request went past the end of what it will serve.
+//
+// Page 21 of a query capped at twenty came back reading "321-306 of over 30,000
+// results" with no pagination strip and six filler cards. The start is computed
+// from the page number, the end is frozen at the ceiling, and the crossover is
+// the clearest statement on the page.
+func (p SearchPage) Inverted() bool { return p.From > 0 && p.To > 0 && p.To < p.From }
 
 // Exhausted reports whether this page ran past the end of the result set.
 //

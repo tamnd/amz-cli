@@ -220,6 +220,21 @@ func searchPageFields() []Field {
 			Rule: PageNumber("next"), Why: "the next page, absent on the last one"},
 		{Name: "page_last", Level: LevelRegion, Regions: []string{"s-pagination", "s-search-results"},
 			Rule: PageNumber("last"), Why: "the highest page the strip will navigate to"},
+
+		{Name: "refinements", Level: LevelRegion, Regions: []string{"s-filters-panel-view"},
+			Rule: Refinements(),
+			Why:  "every refinement group the sidebar offered, which is the vocabulary this package refuses to hardcode"},
+		{Name: "sorts", Level: LevelRegion, Regions: []string{"s-result-info-bar"},
+			Rule: Sorts(),
+			Why:  "the sort dropdown as offered, including which option the page was served under"},
+
+		// Rung 4, and it stays there. The department dropdown sits in the site
+		// header, which is the one part of an Amazon page that carries no
+		// data-component-type, no data-cy and no data-feature-name at all. It is
+		// read by its id, the guess is declared, and `amz extraction` counts it.
+		{Name: "departments", Level: LevelSelector, Via: "#searchDropdownBox", Since: "2026-08-17",
+			Rule: Departments(),
+			Why:  "the search scope aliases, whose spelling depends on where the client appears to be"},
 	}
 }
 

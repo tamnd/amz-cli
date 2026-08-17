@@ -16,11 +16,80 @@
 <body>
 <div class="s-desktop-content">
 
+  <!--
+    The scope dropdown in the header. It carries only an id, which is why the
+    departments field is the one bare selector the search family declares.
+  -->
+  <select id="searchDropdownBox" name="url">
+    <option value="search-alias=aps" selected>All Departments</option>
+    <option value="search-alias=electronics">Electronics</option>
+    <option value="search-alias=computers">Computers</option>
+  </select>
+
   <div data-component-type="s-result-info-bar">
     <div class="a-section a-spacing-small">
       <h2>1-3 of over 20,000 results for <span class="a-color-state a-text-bold">"mechanical keyboard"</span></h2>
     </div>
+    <select name="s" id="s-result-sort-select" aria-label="Sort by:">
+      <option value="relevanceblender" selected>Featured</option>
+      <option value="price-asc-rank">Price: Low to High</option>
+      <option value="price-desc-rank">Price: High to Low</option>
+      <option value="review-rank">Avg. Customer Review</option>
+      <option value="date-desc-rank">Newest Arrivals</option>
+    </select>
   </div>
+
+  <!--
+    The refinement sidebar, three groups deep rather than thirty three. Every
+    id here has the shape the live page uses: the group code on the ul, the
+    code and the value id on each li, and the apply or remove wording in the
+    anchor's aria-label. p_123 is a global code and p_n_g-1003532609111 is not,
+    which is the distinction the whole refinement design turns on.
+  -->
+  <span data-component-type="s-filters-panel-view">
+    <div id="p_123-title"><span class="a-size-base a-color-base puis-bold-weight-text">Brands</span></div>
+    <ul id="filter-p_123">
+      <li id="p_123/213704"><span class="a-list-item">
+        <a aria-label="Apply Logitech filter to narrow results" class="s-navigation-item" href="/s?k=mechanical+keyboard&amp;rh=p_123%3A213704">
+          <span class="a-size-base a-color-base">Logitech</span>
+        </a>
+      </span></li>
+      <li id="p_123/111070"><span class="a-list-item">
+        <a aria-label="Apply Corsair filter to narrow results" class="s-navigation-item" href="/s?k=mechanical+keyboard&amp;rh=p_123%3A111070">
+          <span class="a-size-base a-color-base">Corsair</span>
+        </a>
+      </span></li>
+      <li id="p_123/17091839011"><span class="a-list-item">
+        <a aria-label="Apply Keychron filter to narrow results" class="s-navigation-item" href="/s?k=mechanical+keyboard&amp;rh=p_123%3A17091839011">
+          <span class="a-size-base a-color-base">Keychron</span>
+        </a>
+      </span></li>
+    </ul>
+
+    <div id="p_72-title"><span class="a-size-base a-color-base puis-bold-weight-text">Customer Reviews</span></div>
+    <ul id="filter-p_72">
+      <li id="p_72/1248879011"><span class="a-list-item">
+        <a aria-label="Apply 4 Stars &amp; Up filter to narrow results" class="s-navigation-item" href="/s?k=mechanical+keyboard&amp;rh=p_72%3A1248879011">
+          <i class="a-icon a-icon-star-medium a-star-medium-4"><span class="a-icon-alt">4 Stars &amp; Up</span></i>
+          <span class="a-size-base a-color-base">&amp; Up</span>
+        </a>
+      </span></li>
+    </ul>
+
+    <div id="p_n_g-1003532609111-title"><span class="a-size-base a-color-base puis-bold-weight-text">Key Count</span></div>
+    <ul id="filter-p_n_g-1003532609111">
+      <li id="p_n_g-1003532609111/1003532610111"><span class="a-list-item">
+        <a aria-label="Apply 87 Keys filter to narrow results" class="s-navigation-item" href="/s?k=mechanical+keyboard&amp;rh=p_n_g-1003532609111%3A1003532610111">
+          <span class="a-size-base a-color-base">87 Keys</span>
+        </a>
+      </span></li>
+      <li id="p_n_g-1003532609111/1003532611111"><span class="a-list-item">
+        <a aria-label="Apply 104 Keys filter to narrow results" class="s-navigation-item" href="/s?k=mechanical+keyboard&amp;rh=p_n_g-1003532609111%3A1003532611111">
+          <span class="a-size-base a-color-base">104 Keys</span>
+        </a>
+      </span></li>
+    </ul>
+  </span>
 
   <div data-component-type="s-pagination"></div>
 

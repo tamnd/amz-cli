@@ -273,7 +273,9 @@ func TestSearch(t *testing.T) {
 	if cards[0].BoughtPastMonth != "3K+ bought in past month" || cards[0].Delivery == "" {
 		t.Errorf("card0 social/delivery = %q %q", cards[0].BoughtPastMonth, cards[0].Delivery)
 	}
-	if cards[0].Position != 1 || cards[1].Position != 2 {
+	// Position is the organic rank and card1 is an advertisement, so card1 has
+	// none. Numbering the ad 2 would say the third organic result is fourth.
+	if cards[0].Position != 1 || cards[1].Position != 0 {
 		t.Errorf("positions = %d %d", cards[0].Position, cards[1].Position)
 	}
 	// Every value on the card came from a slot the search team named, so nothing
