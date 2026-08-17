@@ -1,0 +1,11 @@
+{
+  "name": "browse_node",
+  "url": "https://www.amazon.com/electronics-store/b?ie=UTF8\u0026node=172282",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 917459,
+  "sha256": "ca7fb698796854de6a879091a97b2c7b8dbf36eaeab64c210b240fe0b4176c4e",
+  "scrubbed_session_ids": 10,
+  "why": "browse node 172282, with a breadcrumb, child nodes and a shelf per carousel"
+}

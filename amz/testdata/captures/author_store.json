@@ -1,0 +1,11 @@
+{
+  "name": "author_store",
+  "url": "https://www.amazon.com/stores/author/B000APZ33E",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 1367925,
+  "sha256": "5c804ef76e1f66c250039fa085010bbe9a7bb6b957ae61d490a1d88f148e0fe4",
+  "scrubbed_session_ids": 35,
+  "why": "an author page whose DOM renders no matches while its payload carries seventy books, which is the reason the store family reads payloads and not the DOM"
+}

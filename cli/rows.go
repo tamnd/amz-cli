@@ -103,26 +103,36 @@ func categoryRow(c amz.Category) Row {
 	}
 }
 
+// brandRow leads with the page id and the nav size, because those are what a
+// caller does something with next. The followers column that used to sit here
+// was always zero: Amazon renders a follow button with no figure on it, so the
+// old table printed a 0 that read as a brand nobody follows.
 func brandRow(b amz.Brand) Row {
 	return Row{
-		Cols:  []string{"slug", "name", "followers", "featured", "url"},
-		Vals:  []string{b.Slug, b.Name, itoa(b.FollowerCount), itoa(len(b.FeaturedASINs)), b.URL},
+		Cols:  []string{"slug", "page_id", "name", "nav", "featured", "url"},
+		Vals:  []string{b.Slug, b.PageID, b.Name, itoa(len(b.Nav)), itoa(len(b.FeaturedASINs)), b.URL},
 		Value: b, URL: b.URL,
 	}
 }
 
+// sellerRow drops the negative percentage column, which was derived from a
+// positive percentage that was itself always zero, and prints the rating count
+// beside the rating. A 5.0 tells a reader nothing without the count under it.
 func sellerRow(s amz.Seller) Row {
 	return Row{
-		Cols:  []string{"seller_id", "name", "rating", "rating_count", "positive_pct", "negative_pct", "url"},
-		Vals:  []string{s.SellerID, s.Name, s.Rating, itoa(s.RatingCount), f2(s.PositivePct), f2(s.NegativePct), s.URL},
+		Cols:  []string{"seller_id", "name", "rating", "rating_count", "positive_pct", "reviews", "url"},
+		Vals:  []string{s.SellerID, s.Name, f2(s.Rating), i64(s.RatingCount), f2(s.PositivePct), itoa(len(s.Reviews)), s.URL},
 		Value: s, URL: s.URL,
 	}
 }
 
+// authorRow prints books against total_books so a truncated first page is
+// visible in the table rather than only in the JSON. On the measured page those
+// two read 70 and 135.
 func authorRow(a amz.Author) Row {
 	return Row{
-		Cols:  []string{"slug", "name", "followers", "books", "website", "url"},
-		Vals:  []string{a.Slug, a.Name, itoa(a.FollowerCount), itoa(len(a.BookASINs)), a.Website, a.URL},
+		Cols:  []string{"slug", "page_id", "name", "books", "total_books", "url"},
+		Vals:  []string{a.Slug, a.PageID, a.Name, itoa(len(a.Books)), itoa(a.TotalBooks), a.URL},
 		Value: a, URL: a.URL,
 	}
 }

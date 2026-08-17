@@ -1,0 +1,18 @@
+{
+  "name": "product_no_variants",
+  "url": "https://www.amazon.com/dp/B00EB4ADQW",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 1825866,
+  "sha256": "05b81f10a0379151966bf7b9c42a723af595b269a66a7238db540335cefb1b42",
+  "scrubbed_session_ids": 29,
+  "headers": {
+    "content-encoding": "gzip",
+    "content-type": "text/html;charset=UTF-8",
+    "server": "Server",
+    "status": "200",
+    "vary": "Accept-Encoding,User-Agent"
+  },
+  "why": "no twister at all, so the variant reader is exercised on absence rather than only on presence"
+}

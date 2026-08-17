@@ -82,6 +82,21 @@ All five share the same shape: an optional category positional and `--node`.
 | `crawl` | drain the queue into the store | `--kinds` |
 | `db path\|stats\|query\|vacuum\|reset` | the local DuckDB store | |
 
+## Provenance and drift
+
+These report on the reading rather than on what was read. See
+[Extraction](/reference/extraction/) for what the four rungs mean and how the
+capture ledger is kept.
+
+| Command | Purpose | Notable flags |
+| --- | --- | --- |
+| `surfaces` | every Amazon surface `amz` knows, with what was measured about it | |
+| `extraction [asin\|url]` | the ladder, or what one page yielded | `--family`, `--fields`, `--unread` |
+| `verify` | today's read against the golden captures | `--live`, `--strict` |
+| `agent-map <asin\|url>` | Amazon's own interface map, verbatim | |
+| `robots` | the live robots.txt and the group `amz` reads under | |
+| `robots check <url>...` | ask robots.txt about a URL and print the deciding rule | |
+
 ## Utilities
 
 | Command | Purpose |

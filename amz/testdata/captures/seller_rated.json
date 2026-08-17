@@ -1,0 +1,11 @@
+{
+  "name": "seller_rated",
+  "url": "https://www.amazon.com/sp?seller=AKI54NNZ6PH23",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 334131,
+  "sha256": "1f2a8c88e7fb8fa513b8a2dda5f2986b850d23eacca836a054bce1f6ac52a61b",
+  "scrubbed_session_ids": 8,
+  "why": "a third party seller with four rating windows, a star histogram and a page of written feedback"
+}

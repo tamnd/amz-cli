@@ -1,0 +1,18 @@
+{
+  "name": "product_apparel",
+  "url": "https://www.amazon.com/dp/B07ZPKN6YR",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 2218600,
+  "sha256": "b4f827e648485fc8a0d3ab6cb0794137ddebbf19529a608f4a3a3fe50bab6878",
+  "scrubbed_session_ids": 51,
+  "headers": {
+    "content-encoding": "gzip",
+    "content-type": "text/html;charset=UTF-8",
+    "server": "Server",
+    "status": "200",
+    "vary": "Accept-Encoding,User-Agent"
+  },
+  "why": "many variants, so the twister reader runs against a page where num_total_variations exceeds the shipped set"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "search_deep",
+  "url": "https://www.amazon.com/s?k=mechanical+keyboard\u0026page=21",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 1025013,
+  "sha256": "e89ef20eb64596e30947da03b8235207a1581c374de9f5d0b375239b1300eec4",
+  "scrubbed_session_ids": 26,
+  "why": "one page past the ceiling. The result bar prints a range that runs backwards and the pagination strip is gone, which is how a crawl learns it is done"
+}

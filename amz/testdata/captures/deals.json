@@ -1,0 +1,11 @@
+{
+  "name": "deals",
+  "url": "https://www.amazon.com/events/wintersale",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 768368,
+  "sha256": "ed297b98799fa7dca932cc1609c105f819d16fcdd278e4de0e6e51f1b8df9aea",
+  "scrubbed_session_ids": 9,
+  "why": "the deals grid, the dcl component library, and eleven of the package's sixteen rung 4 fields"
+}

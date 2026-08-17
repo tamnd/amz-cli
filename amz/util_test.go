@@ -99,3 +99,108 @@ func TestMarketplaces(t *testing.T) {
 		t.Errorf("expected >=10 marketplaces, got %d", len(Marketplaces()))
 	}
 }
+
+// TestParseIntStartsOnADigit pins the fix for a number reader that matched runs
+// of digits and separators without requiring a digit in them.
+//
+// The strings below are all Amazon's own wording. Each has punctuation in front
+// of the number that a run of "[\d,]" happily matched on its own, so the reader
+// returned zero for a page that plainly stated a figure.
+func TestParseIntStartsOnADigit(t *testing.T) {
+	cases := map[string]int64{
+		"Go to next page, page 2":      2,
+		"Go to previous page, page 7":  7,
+		"1,739 ratings":                1739,
+		"33-48 of over 20,000 results": 33,
+		"Previous":                     0,
+		"":                             0,
+		",":                            0,
+	}
+	for in, want := range cases {
+		if got := parseInt(in); got != want {
+			t.Errorf("parseInt(%q) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+// TestParseCountExpandsAbbreviations pins the other half of the same problem.
+//
+// A search card prints "(1.7K)" beside a link it labels "1,739 ratings". Reading
+// the visible text with parseInt gives 1, and a product with 1 rating and a 4.6
+// average is not a rounding error, it is a different product.
+func TestParseCountExpandsAbbreviations(t *testing.T) {
+	cases := map[string]int64{
+		"(1.7K)":        1700,
+		"3K+":           3000,
+		"(12K)":         12000,
+		"2.3M":          2300000,
+		"1,739 ratings": 1739,
+		"284,512":       284512,
+		"":              0,
+	}
+	for in, want := range cases {
+		if got := parseCount(in); got != want {
+			t.Errorf("parseCount(%q) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+// TestCountRefusesARating pins the reason Count scans every match rather than
+// the first: on a search card the label above the rating count reads "4.6 out of
+// 5 stars, rating details", and reading it as a count gives four ratings.
+func TestCountRefusesARating(t *testing.T) {
+	const card = `<div data-cy="reviews-block">
+	  <a aria-label="4.6 out of 5 stars, rating details"><span class="a-icon-alt">4.6 out of 5 stars</span></a>
+	  <a aria-label="1,739 ratings"><span>(1.7K)</span></a>
+	</div>`
+	d, err := ParseDoc(FamilySearch, []byte(card))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, ok := Count("a[aria-label]", "[aria-label]", "span")(nil, d.Region("reviews-block"))
+	if !ok || v != int64(1739) {
+		t.Errorf("Count = %v %v, want 1739", v, ok)
+	}
+}
+
+// TestReadResultBar covers the line above a search grid, including the shape it
+// takes past the last page.
+func TestReadResultBar(t *testing.T) {
+	cases := []struct {
+		in   string
+		want resultBar
+	}{
+		{`1-16 of over 20,000 results for "mechanical keyboard"`,
+			resultBar{From: 1, To: 16, Total: 20000, Approx: true, Query: "mechanical keyboard"}},
+		{`33-48 of over 20,000 results for "mechanical keyboard"`,
+			resultBar{From: 33, To: 48, Total: 20000, Approx: true, Query: "mechanical keyboard"}},
+		// Past the cap Amazon prints a range that runs backwards. It is recorded
+		// as it was printed, and SearchPage.Exhausted is what reads it as an end.
+		{`321-306 of over 30,000 results for "mechanical keyboard"`,
+			resultBar{From: 321, To: 306, Total: 30000, Approx: true, Query: "mechanical keyboard"}},
+		{`1,048 results for "usb c cable"`,
+			resultBar{Total: 1048, Query: "usb c cable"}},
+	}
+	for _, c := range cases {
+		got, ok := readResultBar(c.in)
+		if !ok || got != c.want {
+			t.Errorf("readResultBar(%q) = %+v %v, want %+v", c.in, got, ok, c.want)
+		}
+	}
+	if _, ok := readResultBar("Sort by: Featured"); ok {
+		t.Errorf("readResultBar read a bar out of a sort menu")
+	}
+}
+
+// TestSearchPageExhausted covers the two ways a walk over /s ends.
+func TestSearchPageExhausted(t *testing.T) {
+	if (SearchPage{From: 1, To: 16, Cards: []Card{{}}}).Exhausted() {
+		t.Errorf("a full page reports exhausted")
+	}
+	if !(SearchPage{From: 321, To: 306, Cards: []Card{{}}}).Exhausted() {
+		t.Errorf("a backwards range does not report exhausted")
+	}
+	if !(SearchPage{From: 1, To: 16}).Exhausted() {
+		t.Errorf("an empty grid does not report exhausted")
+	}
+}

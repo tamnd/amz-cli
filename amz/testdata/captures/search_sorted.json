@@ -1,0 +1,11 @@
+{
+  "name": "search_sorted",
+  "url": "https://www.amazon.com/s?k=mechanical+keyboard\u0026s=price-asc-rank",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 900168,
+  "sha256": "c06464634dba7a1faa54c11af038a0f2aab99ec688701766c167503a4d7a41ad",
+  "scrubbed_session_ids": 25,
+  "why": "the same query sorted by price, so the sort state is read from the page rather than assumed from the request"
+}

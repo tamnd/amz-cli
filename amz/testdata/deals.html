@@ -1,21 +1,116 @@
 <!DOCTYPE html>
-<html lang="en"><head><title>Amazon.com Deals</title></head>
+<!--
+  A miniature of /deals, copied from a live capture taken on 2026-08-17.
+
+  Two things this fixture exists to hold on to.
+
+  The first is that /deals carries no data-testid and no data-asin. Not few:
+  none, in 768 KB of HTML. The parser this replaced looked for both and matched
+  nothing, so it returned an empty list and no error. The tile anchor is
+  data-csa-c-item-id, and its value is two identifiers in one string: the product
+  and the promotion that put it here.
+
+  The second is that /deals answers with rel=canonical pointing at a seasonal
+  event page. The URL is stable and what it serves is not, and the canonical is
+  where Amazon says so.
+
+  The live page held eleven tiles in one shelf, every one of them carrying a deal
+  id, a badge and a struck through price, and not one of them carrying a rating.
+  This holds two of them, with the same proportions.
+-->
+<html lang="en">
+<head>
+  <title>Today's Deals</title>
+  <link rel="canonical" href="https://www.amazon.com/events/wintersale"/>
+  <meta property="og:title" content="Today's Deals"/>
+</head>
 <body>
-  <div class="DealGrid">
-    <div data-testid="deal-card" data-asin="B08C1W5N87">
-      <a href="/Fire-TV/dp/B08C1W5N87"><img alt="Fire TV Stick 4K"></a>
-      <span data-testid="deal-title">Fire TV Stick 4K</span>
-      <span class="a-price"><span class="a-offscreen">$24.99</span></span>
-      <span class="a-text-price"><span class="a-offscreen">$49.99</span></span>
-      <span data-testid="deal-badge">Lightning Deal</span>
-      <span data-testid="deal-percent-off">50% off</span>
+
+<div class="celwidget" cel_widget_id="Navigation-desktop-navbar" data-csa-c-type="widget">
+  <a href="/gp/goldbox">Today's Deals</a>
+</div>
+
+<div class="celwidget" cel_widget_id="hve-rankable-banner_deals-events-atf-desktop_0" data-csa-c-type="widget">
+  <img alt="Winter Sale" src="https://m.media-amazon.com/images/G/01/winter-sale-hero.jpg"/>
+</div>
+
+<div class="celwidget" cel_widget_id="deals-events-atf-desktop_deals-p13n-023e38df-c2e1-4599-b71a-6e6f6c02c1f4" data-csa-c-type="widget">
+  <h3>Save on big purchases</h3>
+  <div class="a-section dcl-carousel">
+
+    <div class="dcl-product-wrapper" data-csa-c-pos="1,8" data-csa-c-posx="8" data-csa-c-type="item"
+         data-csa-c-item-type="asin" data-csa-c-item-id="amzn1.asin.B004UBUJZG:amzn1.deal.1e7a7bea" data-csa-c-owner="Dossier">
+      <div class="a-cardui dcl-product" data-a-card-type="basic">
+        <a class="a-link-normal dcl-product-link" href="/Ethernet-Unmanaged-Rackmount-TL-SG1048/dp/B004UBUJZG?ref_=dossier_default_ref_B004UBUJZG">
+          <div class="dcl-product-image-container">
+            <img alt="" src="https://m.media-amazon.com/images/I/31yHx8lpA5L._AC_SR240,220_.jpg" class="a-dynamic-image dcl-dynamic-image" height="220" width="240"
+                 data-a-dynamic-image="{&quot;https://m.media-amazon.com/images/I/31yHx8lpA5L._AC_SR240,220_.jpg&quot;:&quot;[240, 220]&quot;,&quot;https://m.media-amazon.com/images/I/41fz80LonVL._AC_SR480,440_.jpg&quot;:&quot;[480, 440]&quot;}"/>
+          </div>
+          <div class="a-section dcl-product-detail">
+            <span class="dcl-truncate dcl-product-label" style="--max-rows:1"><span>TP-Link 48 Port Gigabit Ethernet Switch</span></span>
+            <div class="a-section dcl-badge">
+              <div class="_badgeContainer_7zw89_1" data-component="dui-badge">
+                <div style="background-color:#CC0C39;color:#ffffff" class="_badgeLabel_f6hz5_1" role="presentation"><span class="a-size-mini">20% off</span></div>
+                <div style="background-color:#ffffff;color:#CC0C39" class="_badgeMessage_f6hz5_10" role="presentation"><span class="a-size-mini">Limited time deal</span></div>
+              </div>
+            </div>
+            <div class="dcl-price-single">
+              <span class="a-price dcl-product-price-new" data-a-size="medium_plus" data-a-color="base">
+                <span class="a-offscreen">$239.98</span>
+                <span aria-hidden="true"><span class="a-price-symbol">$</span><span class="a-price-whole">239<span class="a-price-decimal">.</span></span><span class="a-price-fraction">98</span></span>
+              </span>
+              <div class="a-section dcl-product-old-price-section">
+                <span class="a-size-mini a-color-secondary dcl-product-old-price-label aok-offscreen">List:</span>
+                <span class="a-price a-text-price dcl-product-price-old" data-a-size="mini" data-a-strike="true" data-a-color="secondary">
+                  <span class="a-offscreen">$299.99</span><span aria-hidden="true">$299.99</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
     </div>
-    <div data-testid="deal-card" data-asin="B09B8V1LZ3">
-      <a href="/Echo-Dot/dp/B09B8V1LZ3"><img alt="Echo Dot (5th Gen)"></a>
-      <span data-testid="deal-title">Echo Dot (5th Gen)</span>
-      <span class="a-price"><span class="a-offscreen">$34.99</span></span>
-      <span class="a-text-price"><span class="a-offscreen">$49.99</span></span>
-      <span data-testid="deal-badge">Deal of the Day</span>
+
+    <div class="dcl-product-wrapper" data-csa-c-pos="2,8" data-csa-c-posx="8" data-csa-c-type="item"
+         data-csa-c-item-type="asin" data-csa-c-item-id="amzn1.asin.B08C1W5N87:amzn1.deal.6f2c0d13" data-csa-c-owner="Dossier">
+      <div class="a-cardui dcl-product" data-a-card-type="basic">
+        <a class="a-link-normal dcl-product-link" href="/Fire-TV-Stick/dp/B08C1W5N87?ref_=dossier_default_ref_B08C1W5N87">
+          <div class="dcl-product-image-container">
+            <img alt="" src="https://m.media-amazon.com/images/I/41Ryv0LFXpL._AC_SR240,220_.jpg" class="a-dynamic-image dcl-dynamic-image" height="220" width="240"
+                 data-a-dynamic-image="{&quot;https://m.media-amazon.com/images/I/41Ryv0LFXpL._AC_SR240,220_.jpg&quot;:&quot;[240, 220]&quot;}"/>
+          </div>
+          <div class="a-section dcl-product-detail">
+            <span class="dcl-truncate dcl-product-label" style="--max-rows:1"><span>Fire TV Stick 4K streaming device</span></span>
+            <div class="a-section dcl-badge">
+              <div class="_badgeContainer_7zw89_1" data-component="dui-badge">
+                <div class="_badgeLabel_f6hz5_1" role="presentation"><span class="a-size-mini">50% off</span></div>
+                <div class="_badgeMessage_f6hz5_10" role="presentation"><span class="a-size-mini">Ends in</span></div>
+              </div>
+              <div data-component="badge-countdown-timer"><span class="_timer_1k2j3_1"></span></div>
+            </div>
+            <div class="dcl-price-single">
+              <span class="a-price dcl-product-price-new" data-a-size="medium_plus" data-a-color="base">
+                <span class="a-offscreen">$24.99</span>
+                <span aria-hidden="true"><span class="a-price-symbol">$</span><span class="a-price-whole">24<span class="a-price-decimal">.</span></span><span class="a-price-fraction">99</span></span>
+              </span>
+              <div class="a-section dcl-product-old-price-section">
+                <span class="a-size-mini a-color-secondary dcl-product-old-price-label aok-offscreen">Typical:</span>
+                <span class="a-price a-text-price dcl-product-price-old" data-a-size="mini" data-a-strike="true" data-a-color="secondary">
+                  <span class="a-offscreen">$49.99</span><span aria-hidden="true">$49.99</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
     </div>
+
   </div>
-</body></html>
+</div>
+
+<div class="celwidget" cel_widget_id="pcpo-offer_deals-events-atf-desktop_3" data-csa-c-type="widget">
+  <h3>More to explore</h3>
+</div>
+
+</body>
+</html>

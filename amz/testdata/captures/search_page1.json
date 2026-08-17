@@ -1,0 +1,11 @@
+{
+  "name": "search_page1",
+  "url": "https://www.amazon.com/s?k=mechanical+keyboard",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 1299326,
+  "sha256": "4f7fe0237f9791964b8f84d18e5336860d12878e3cefee69478bc5e94bf348ca",
+  "scrubbed_session_ids": 36,
+  "why": "the first page of a broad query: refinements, a result estimate and a full card grid"
+}
