@@ -6,22 +6,18 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/tamnd/amz-cli)](https://goreportcard.com/report/github.com/tamnd/amz-cli)
 [![License](https://img.shields.io/github/license/tamnd/amz-cli)](./LICENSE)
 
-A command line for Amazon. `amz` reads every public Amazon surface — products,
-search, reviews, Q&A, offers, charts, categories, brands, sellers, authors, and
-deals — and turns each one into clean, pipeable records. One pure-Go binary, no
-API key required.
+A command line for Amazon.
+`amz` reads every public Amazon surface (products, search, reviews, Q&A, offers, charts, categories, brands, sellers, authors, deals) and turns each one into clean, pipeable records.
+One pure-Go binary, no API key required.
 
 [Install](#install) • [Commands](#commands) • [Usage](#usage) • [Access tiers](#access-tiers)
 
 ![amz reading Amazon bestsellers as a table and piping through jq](docs/static/demo.gif)
 
-It reads the public pages on `amazon.com` over plain HTTPS, extracts the JSON-LD
-Amazon marks up for machines, and falls back to precise HTML selectors so each
-record is rich with no missing fields where the page had them. Every request is
-paced, retried on transient failures, and cached on disk. When Amazon serves a
-bot-check page instead of content, `amz` detects it and exits with a distinct
-code rather than handing you garbage. `robots.txt` is fetched and obeyed on
-every request.
+It reads the public pages on `amazon.com` over plain HTTPS and normalizes each one into a record with named fields.
+Every request is paced, retried on transient failures, and cached on disk.
+`robots.txt` is fetched from the marketplace and obeyed before every request.
+When Amazon serves a bot-check page instead of content, `amz` detects it and exits with a distinct code rather than handing you garbage.
 
 `amz` is an independent tool. It is not affiliated with or endorsed by Amazon.
 
@@ -156,10 +152,9 @@ reported rather than reached.
 
 ## robots.txt
 
-`amz` fetches `robots.txt` from the marketplace it is reading, caches it for 24
-hours, and asks it before every request. There is no compiled-in copy, because a
-stale copy that says yes is worse than no answer. If the file cannot be fetched,
-`amz` reads nothing and exits 8.
+`amz` fetches `robots.txt` from the marketplace it is reading, caches it for 24 hours, and asks it before every request.
+There is no compiled-in copy, because a stale copy that says yes is worse than no answer.
+If the file cannot be fetched, `amz` reads nothing and exits 8.
 
 ```console
 $ amz robots
@@ -175,13 +170,11 @@ disallowed  .../gp/offer-listing/B075F5X8BR    Disallow: /gp/offer-listing/  off
 disallowed  .../b?node=7454917011              Disallow: /b?*node=7454917011 category s4
 ```
 
-That last row is why the matcher runs against the query string and not the path:
-five browse nodes are refused by a pattern that only ever matches inside a query.
+That last row is why the matcher runs against the query string and not the path.
+Five browse nodes are refused by a pattern that only ever matches inside a query, and a path-only matcher gets all five wrong.
 
-`--no-robots` is the override. It is a flag and only a flag: not a config key,
-not an environment variable, and it lasts for one run. It prints a banner, names
-every rule it breaks as it breaks it, raises the pace floor from 1s to 5s, and
-needs `--yes` before it will do this to a whole crawl queue.
+`--no-robots` is the override, and it is a flag and only a flag: not a config key, not an environment variable, and it lasts for one run.
+It prints a banner, names every rule it breaks as it breaks it, raises the pace floor from 1s to 5s, and needs `--yes` before it will do this to a whole crawl queue.
 
 ## Access tiers
 

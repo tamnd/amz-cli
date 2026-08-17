@@ -81,9 +81,9 @@ path` and `amz cache info` print the resolved locations.
 
 ## Keys that do not exist
 
-`--no-robots` is a flag and only a flag. There is no `no_robots` config key and
-no `AMZ_NO_ROBOTS` environment variable, and `amz` has tests asserting that
-neither ever appears. A stop signal you can turn off in a file you forgot about
-is not a stop signal.
+`--no-robots` is a flag and only a flag.
+There is no `no_robots` config key and no `AMZ_NO_ROBOTS` environment variable, and `amz` has tests asserting that neither ever appears.
+A stop signal you can turn off in a file you forgot about is not a stop signal.
 
-The same is true of the pace floor. `--rate` can raise it; nothing lowers it.
+The same is true of the pace floor.
+`--rate` can raise it and nothing lowers it.
