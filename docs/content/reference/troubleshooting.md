@@ -13,10 +13,8 @@ not a bug in amz.
 
 When it happens:
 
-- **Slow down.** Raise `--rate` (try `--rate 6s`) and lower `--workers`. A
+- **Slow down.** Raise `--rate` (try `--rate 6s`). A
   steadier, slower stream is far less likely to trip the wall.
-- **Lend a session.** Pass `--cookies file` with a logged-in cookie jar. Cookied
-  requests are treated more like a real browser.
 - **Use the official API.** With PA-API credentials, `--api` avoids the HTML
   path entirely for the surfaces it covers.
 - **Switch network.** A residential IP is blocked far less often than a

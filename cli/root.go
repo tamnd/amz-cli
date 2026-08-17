@@ -21,6 +21,10 @@ var (
 	Date    = "unknown"
 )
 
+// The User-Agent names this version, so the linker-stamped value has to reach the
+// amz package. -ldflags runs before init, so this sees the real version.
+func init() { amz.SetVersion(Version) }
+
 // Exit codes (mirrors spec §6).
 const (
 	CodeOK      = 0
@@ -72,11 +76,9 @@ type App struct {
 	Fields      string
 	Limit       int
 	DataDir     string
-	Workers     int
 	Rate        time.Duration
 	Retries     int
 	Timeout     time.Duration
-	Cookies     string
 	UseAPI      bool
 	Quiet       bool
 	Verbose     bool
@@ -98,11 +100,9 @@ type App struct {
 func (a *App) Config() amz.Config {
 	cfg := amz.DefaultConfig()
 	cfg.Marketplace = a.Marketplace
-	cfg.Workers = a.Workers
-	cfg.Delay = a.Rate
+	cfg.Delay = amz.ClampDelay(a.Rate)
 	cfg.Retries = a.Retries
 	cfg.Timeout = a.Timeout
-	cfg.Cookies = a.Cookies
 	cfg.UseAPI = a.UseAPI
 	cfg.NoCache = a.NoCache
 	cfg.Refresh = a.Refresh
@@ -203,11 +203,17 @@ func Root() *cobra.Command {
 	pf.StringVar(&app.Fields, "fields", "", "comma-separated columns to show")
 	pf.IntVarP(&app.Limit, "limit", "n", 0, "cap results (0 = unlimited)")
 	pf.StringVar(&app.DataDir, "data-dir", "", "root cache/data dir (default: XDG)")
-	pf.IntVarP(&app.Workers, "workers", "j", amz.DefaultWorkers, "concurrency for multi-page/bulk")
-	pf.DurationVar(&app.Rate, "rate", amz.DefaultDelay, "min delay between requests")
+	pf.DurationVar(&app.Rate, "rate", amz.DefaultDelay, "min delay between requests (floor "+amz.MinDelay.String()+")")
 	pf.IntVar(&app.Retries, "retries", amz.DefaultRetries, "retry attempts on 429/503")
 	pf.DurationVar(&app.Timeout, "timeout", amz.DefaultTimeout, "per-request timeout")
-	pf.StringVar(&app.Cookies, "cookies", "", "cookie file to lend a signed-in session")
+
+	// --workers is gone. amz reads one page at a time: two requests in flight made
+	// --rate a lie by a factor of two, and Amazon scores the session. The flag stays
+	// as a hidden no-op for one version so existing scripts keep parsing.
+	var workersCompat int
+	pf.IntVarP(&workersCompat, "workers", "j", 1, "removed: amz reads one page at a time")
+	_ = pf.MarkHidden("workers")
+	_ = pf.MarkDeprecated("workers", "amz reads one page at a time; use --rate to control pace")
 	pf.BoolVar(&app.UseAPI, "api", false, "use the official PA-API path (needs credentials)")
 	pf.BoolVarP(&app.Quiet, "quiet", "q", false, "quiet output")
 	pf.BoolVarP(&app.Verbose, "verbose", "v", false, "verbose output")

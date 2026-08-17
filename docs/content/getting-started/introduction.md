@@ -21,7 +21,8 @@ each command does the same three things:
 1. **Build the URL** for the surface in the marketplace you picked (`--marketplace`,
    default `us`). You pass the natural identifier, an ASIN, a search query, a
    browse-node id, a seller id, and amz constructs the canonical URL.
-2. **Fetch politely.** Requests go out with a rotating browser user agent, a
+2. **Fetch politely.** Requests go out as `amz-cli/<version>`, naming the tool
+   and its repo, with three headers and no disguise, one page at a time, a
    minimum delay between them (`--rate`), retry-with-backoff on the rate-limit
    responses, and on-disk caching so a repeated lookup is free.
 3. **Parse twice.** amz reads the embedded JSON-LD block first, the data Amazon
@@ -46,14 +47,12 @@ each command does the same three things:
 | Today's deals | `deals` | none |
 | Recommendation cards | `related` | ASIN |
 
-## Three ways in
+## Two ways in
 
-amz reads three tiers of access, and you choose per run:
+amz reads two tiers of access, and you choose per run:
 
 - **Public HTML** (default). No setup. Reads the same pages a logged-out browser
   sees.
-- **Cookied** (`--cookies file`). Lends a signed-in session so you see your
-  locale, currency, and any pricing tied to an account.
 - **PA-API** (`--api`). Uses Amazon's official Product Advertising API 5.0 when
   you have credentials, signed locally with SigV4. The output schema is the
   same, so a script does not care which tier produced the record.

@@ -21,11 +21,9 @@ These persistent flags work on every command:
 | `-O`, `--out` | | write output to a file |
 | `--no-header` | | omit the table/CSV header |
 | `--template` | | Go text/template per row |
-| `-j`, `--workers` | `2` | concurrency for multi-page/bulk |
 | `--rate` | `3s` | minimum delay between requests |
 | `--retries` | `3` | retry attempts on 429/503 |
 | `--timeout` | `30s` | per-request timeout |
-| `--cookies` | | cookie file for a signed-in session |
 | `--api` | | use the official PA-API path |
 | `--no-cache` | | bypass the on-disk cache |
 | `--refresh` | | ignore the cached copy but repopulate it |

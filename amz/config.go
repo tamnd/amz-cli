@@ -10,17 +10,30 @@ import (
 const (
 	DefaultDelay   = 3 * time.Second
 	DefaultTimeout = 30 * time.Second
-	DefaultWorkers = 2
 	DefaultRetries = 3
-	UserAgent      = "amz/0.1 (+https://github.com/tamnd/amz-cli)"
+
+	// MinDelay is the floor on request spacing. It is not overridable by flag,
+	// by env or by config, because a pace flag that can be set to zero is not a
+	// pace flag. --rate can raise it and nothing can lower it.
+	MinDelay = 1 * time.Second
 )
+
+// ClampDelay applies the floor. A zero or negative delay means "unset", which
+// resolves to the default rather than to no delay at all.
+func ClampDelay(d time.Duration) time.Duration {
+	if d <= 0 {
+		return DefaultDelay
+	}
+	if d < MinDelay {
+		return MinDelay
+	}
+	return d
+}
 
 // Config carries the resolved settings for a run.
 type Config struct {
 	Marketplace string
-	Cookies     string
 	UseAPI      bool
-	Workers     int
 	Delay       time.Duration
 	Retries     int
 	Timeout     time.Duration
@@ -42,7 +55,6 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Marketplace:     "us",
-		Workers:         DefaultWorkers,
 		Delay:           DefaultDelay,
 		Retries:         DefaultRetries,
 		Timeout:         DefaultTimeout,

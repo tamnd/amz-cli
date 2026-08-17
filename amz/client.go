@@ -1,28 +1,22 @@
 package amz
 
 import (
-	"bufio"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
-	"os"
 	"strings"
 	"sync"
 	"time"
 )
 
-// userAgents is a small pool of realistic desktop browser UAs, rotated per request.
-var userAgents = []string{
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15",
-	"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
-}
-
 // Client is a polite, block-aware HTTP client for one marketplace.
+//
+// One connection, one request at a time, one honest identity. The concurrency
+// that used to live here is gone: two requests in flight made --rate a lie by a
+// factor of two, and Amazon rate-scores the session and not the request.
 type Client struct {
 	hc      *http.Client
 	mkt     Marketplace
@@ -34,34 +28,48 @@ type Client struct {
 
 	base string // overrides the marketplace origin (tests / proxies)
 
-	mu      sync.Mutex
-	next    time.Time
-	uaIndex int
+	mu   sync.Mutex
+	next time.Time
 }
 
 // NewClient builds a client from a resolved config.
 func NewClient(cfg Config) *Client {
 	mkt, _ := LookupMarketplace(cfg.Marketplace)
+
+	// The jar holds the session cookie Amazon sets on the first request, so the
+	// run is a coherent session. It is never loaded from disk and never written
+	// to one: nothing amz reads needs a signed-in session, and a tool that can
+	// borrow one will be pointed at surfaces that require one.
 	jar, _ := cookiejar.New(nil)
-	c := &Client{
-		hc:      &http.Client{Timeout: cfg.Timeout, Jar: jar},
+
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.MaxConnsPerHost = 1
+	tr.MaxIdleConnsPerHost = 1
+
+	return &Client{
+		hc:      &http.Client{Timeout: cfg.Timeout, Jar: jar, Transport: tr},
 		mkt:     mkt,
-		delay:   cfg.Delay,
+		delay:   ClampDelay(cfg.Delay),
 		retries: cfg.Retries,
 		noCache: cfg.NoCache,
 		refresh: cfg.Refresh,
+		cache:   newCacheIf(cfg.CacheDir),
 	}
-	if cfg.CacheDir != "" {
-		c.cache = NewCache(cfg.CacheDir)
+}
+
+func newCacheIf(dir string) *Cache {
+	if dir == "" {
+		return nil
 	}
-	if cfg.Cookies != "" {
-		_ = c.loadCookies(cfg.Cookies)
-	}
-	return c
+	return NewCache(dir)
 }
 
 // Marketplace returns the client's marketplace.
 func (c *Client) Marketplace() Marketplace { return c.mkt }
+
+// Delay returns the spacing the client keeps between requests, after the floor
+// has been applied.
+func (c *Client) Delay() time.Duration { return c.delay }
 
 // BaseURL returns the marketplace origin, or the override when set.
 func (c *Client) BaseURL() string {
@@ -84,14 +92,6 @@ func (c *Client) throttle() {
 		time.Sleep(c.next.Sub(now))
 	}
 	c.next = time.Now().Add(c.delay)
-}
-
-func (c *Client) ua() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	ua := userAgents[c.uaIndex%len(userAgents)]
-	c.uaIndex++
-	return ua
 }
 
 // Get fetches a URL and returns its body, using the cache when allowed and
@@ -128,13 +128,13 @@ func (c *Client) fetch(ctx context.Context, rawURL string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		c.setHeaders(req)
+		req.Header = Headers()
 		resp, err := c.hc.Do(req)
 		if err != nil {
 			lastErr = err
 			continue
 		}
-		body, rerr := io.ReadAll(resp.Body)
+		body, rerr := readBody(resp)
 		_ = resp.Body.Close()
 		if rerr != nil {
 			lastErr = rerr
@@ -160,46 +160,21 @@ func (c *Client) fetch(ctx context.Context, rawURL string) ([]byte, error) {
 	return nil, lastErr
 }
 
-func (c *Client) setHeaders(req *http.Request) {
-	req.Header.Set("User-Agent", c.ua())
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
-	req.Header.Set("Accept-Language", c.mkt.Language)
-	req.Header.Set("Referer", c.mkt.BaseURL()+"/")
-	req.Header.Set("Upgrade-Insecure-Requests", "1")
-	req.Header.Set("Sec-Fetch-Dest", "document")
-	req.Header.Set("Sec-Fetch-Mode", "navigate")
-}
-
-// loadCookies reads a Netscape cookies.txt file into the jar for the marketplace host.
-func (c *Client) loadCookies(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-	var cookies []*http.Cookie
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+// readBody reads the response, decompressing when needed.
+//
+// Go's transport normally adds Accept-Encoding and decompresses transparently,
+// but only when the caller has not set the header itself. amz sets it, because
+// the header set is declared in one place and is asserted exactly, so the
+// decompression is ours to do.
+func readBody(resp *http.Response) ([]byte, error) {
+	r := resp.Body
+	if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
+		zr, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, err
 		}
-		// Netscape format: domain \t flag \t path \t secure \t expiry \t name \t value
-		fields := strings.Split(line, "\t")
-		if len(fields) >= 7 {
-			cookies = append(cookies, &http.Cookie{Name: fields[5], Value: fields[6]})
-			continue
-		}
-		// header form: "name=value; name2=value2"
-		for _, part := range strings.Split(line, ";") {
-			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
-			if len(kv) == 2 {
-				cookies = append(cookies, &http.Cookie{Name: kv[0], Value: kv[1]})
-			}
-		}
+		defer func() { _ = zr.Close() }()
+		r = zr
 	}
-	if u, err := requestURL(c.mkt.BaseURL()); err == nil {
-		c.hc.Jar.SetCookies(u, cookies)
-	}
-	return sc.Err()
+	return io.ReadAll(r)
 }

@@ -124,8 +124,6 @@ func accessTier(app *App) string {
 	switch {
 	case app.UseAPI:
 		return "official PA-API 5.0 (--api)"
-	case app.Cookies != "":
-		return "cookied HTML session (--cookies)"
 	default:
 		return "public HTML (default)"
 	}

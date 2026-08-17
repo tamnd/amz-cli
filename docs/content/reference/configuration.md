@@ -34,9 +34,9 @@ amz is built to read Amazon without hammering it. The defaults:
 | `--rate` | 3s | minimum delay between requests |
 | `--retries` | 3 | retries on a 429/503 with backoff |
 | `--timeout` | 30s | per-request timeout |
-| `--workers` | 2 | concurrency for multi-page and bulk work |
 
-Requests carry a rotating browser user agent, and successful pages are cached on
+Requests carry `amz-cli/<version> (+https://github.com/tamnd/amz-cli)` and two
+other headers, never a browser string, and successful pages are cached on
 disk so a repeat is free. `--no-cache` bypasses the cache, `--refresh` ignores
 the cached copy but repopulates it.
 
@@ -45,7 +45,6 @@ the cached copy but repopulates it.
 amz reads three tiers, selected per run:
 
 - **Public HTML**, the default, no setup.
-- **Cookied**, `--cookies file`, lends a signed-in session.
 - **PA-API**, `--api`, uses the official Product Advertising API 5.0 with
   credentials, signed locally.
 
