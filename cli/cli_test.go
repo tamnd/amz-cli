@@ -273,6 +273,43 @@ func TestCmdDryRun(t *testing.T) {
 	}
 }
 
+// An argument that is not an id and not a URL used to reach the transport,
+// which fetched the empty string and reported `unsupported protocol scheme ""`.
+// That sentence describes the plumbing and leaves the person who typed the wrong
+// thing to work out what the right thing was.
+func TestCmdArgumentThatIsNotAPage(t *testing.T) {
+	for _, args := range [][]string{
+		{"product", "product"},
+		{"product", "product", "--dry-run"},
+		{"extraction", "nonsense"},
+		{"agent-map", "product"},
+	} {
+		out, err := run(t, args...)
+		if codeFor(err) != CodeUsage {
+			t.Errorf("%v: expected usage exit, got %v (code %d)", args, err, codeFor(err))
+		}
+		if err != nil && strings.Contains(err.Error(), "protocol scheme") {
+			t.Errorf("%v: error names the transport instead of the argument: %v", args, err)
+		}
+		if strings.Contains(out, "protocol scheme") {
+			t.Errorf("%v: output names the transport instead of the argument: %q", args, out)
+		}
+	}
+}
+
+// `amz extraction product` reads as the per family report and is not: the family
+// is a flag and the argument is a page. Answering that with "not an ASIN" is
+// true and unhelpful.
+func TestCmdExtractionFamilyAsArgument(t *testing.T) {
+	_, err := run(t, "extraction", "product")
+	if codeFor(err) != CodeUsage {
+		t.Fatalf("expected usage exit, got %v (code %d)", err, codeFor(err))
+	}
+	if !strings.Contains(err.Error(), "--family product") {
+		t.Errorf("error does not name the flag that does what was meant: %v", err)
+	}
+}
+
 func TestCmdUnknownMarketplace(t *testing.T) {
 	_, err := run(t, "product", "B08N5WRWNW", "-m", "zz")
 	if codeFor(err) != CodeUsage {

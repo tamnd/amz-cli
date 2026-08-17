@@ -80,9 +80,13 @@ where it came from.
 
 ## The older flat shape
 
-`--flat` emits the v0.2.1 product record: one level, no envelope, prices as bare
-numbers. It exists so a pipeline written against that shape keeps running while
-it is updated, it is deprecated, and it goes away in v0.4.0.
+`--flat` emits the v0.2.1 product record: one level, the old column names, and
+prices as bare numbers. It exists so a pipeline written against that shape keeps
+running while it is updated, it is deprecated, and it goes away in v0.4.0.
+
+The envelope travels with it. Provenance is not a projection, and a caller who
+has not migrated yet still has a record that can say where it came from and what
+was looked for and not found.
 
 ```bash
 amz product B084DWG2VQ --flat -o jsonl

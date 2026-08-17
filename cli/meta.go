@@ -27,7 +27,9 @@ func openCmd(app *App) *cobra.Command {
 			case reviews:
 				target = c.ReviewURL(asinArg(args[0]), amz.ReviewQuery{}, 1)
 			case amz.ExtractASIN(args[0]) != "" || isBareASIN(args[0]):
-				target = resolveURL(c, args[0])
+				if target, err = resolveURL(c, args[0]); err != nil {
+					return err
+				}
 			default:
 				target = c.BaseURL() + "/s?k=" + url.QueryEscape(joinArgs(args))
 			}

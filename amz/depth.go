@@ -10,19 +10,31 @@ import (
 // Depth is how much of a product a caller wants.
 //
 // Four levels and only three cost profiles, because quick and meta are both one
-// request and differ in which page they ask for. That is the point of having
-// quick at all: the mobile rendering of a detail page is 374 KB against 2.2 MB
-// for the desktop one, measured on 2026-08-17, and a crawl that needs a title, a
-// price and a rating across ten thousand ASINs is moving six times the bytes it
-// has any use for.
+// request and differ in which page they ask for.
+//
+// Quick was specified as the cheap read, on a measurement that said /gp/aw/d/
+// returns 374 KB against 2.2 MB for /dp/. That comparison was wrong, and it was
+// wrong in a way worth writing down, because it is a mistake anyone measuring a
+// page with curl can make. Amazon gzips both responses. 374 KB is what /gp/aw/d/
+// weighs on the wire and 2.2 MB is what /dp/ weighs after decoding, so the two
+// numbers were never comparable. Measured on 2026-08-17 for B075F5X8BR:
+//
+//	/gp/aw/d/  373,945 bytes on the wire, 2,197,291 decoded
+//	/dp/       373,980 bytes on the wire, 2,196,553 decoded
+//
+// It is the same page at the same cost, and it yields the same 26 fields. Quick
+// is kept because it is the only thing that reads s2, so the surface stays
+// exercised and the day Amazon serves that URL a lighter rendering again the
+// saving is one flag away. It is not kept because it saves anything today.
 //
 // See notes/Spec/3007/03_model.md section 11.
 type Depth string
 
 const (
-	// DepthQuick reads the mobile detail page. One request, a fifth of the
-	// bytes, and a shorter list of fields, which the envelope states rather than
-	// leaves the caller to discover.
+	// DepthQuick reads /gp/aw/d/, which is s2. One request, and byte for byte
+	// the same page as meta today, which the envelope states by naming the
+	// surface rather than leaving the caller to assume a saving that is not
+	// there.
 	DepthQuick Depth = "quick"
 	// DepthMeta reads the desktop detail page and skips the recommendation
 	// strips. One request. This is the default.
@@ -255,7 +267,8 @@ func surfaceOf(rawURL string) string {
 	return ""
 }
 
-// LightProductURL is the mobile rendering of a detail page, which is s2.
+// LightProductURL is the URL Amazon serves its mobile rendering from, which is
+// s2, and which returns the same page as /dp/ to this client.
 func (c *Client) LightProductURL(asin string) string {
 	return c.BaseURL() + "/gp/aw/d/" + asin
 }

@@ -166,7 +166,7 @@ var ops = []*Op{
 		ID: "s2", Name: "product-light", Path: "/gp/aw/d/<asin>", Robots: RobotsAllowed, Since: "2026-08-17",
 		Fields: []string{"asin", "title", "price", "rating", "ratings_count", "images"},
 		Why:    "product",
-		Note:   "374 KB, the mobile rendering. Fewer fields, one fifth the bytes.",
+		Note:   "The mobile URL, which returns the same page as /dp/. 373,945 bytes on the wire and 2,197,291 decoded, against 373,980 and 2,196,553 for /dp/, measured 2026-08-17. The 374 KB this was specified at is the gzipped transfer of the full page, so it is not the cheap read it was taken for. The field list stays the short one it is guaranteed to carry.",
 		match:  pathPrefix("/gp/aw/d/"),
 	},
 	{
