@@ -720,6 +720,34 @@ func Present(sel string) FieldRule {
 	}
 }
 
+// Refinements reads the whole refinement sidebar as one field.
+//
+// One field rather than thirty-three, because the groups are data and not
+// schema: which ones a query offers depends on the query, and a registry with a
+// field per group would be a registry that describes one search for keyboards.
+func Refinements() FieldRule {
+	return func(_ *Extractor, r Region) (any, bool) {
+		g := readRefinements(r)
+		return g, len(g) > 0
+	}
+}
+
+// Sorts reads the sort dropdown.
+func Sorts() FieldRule {
+	return func(_ *Extractor, r Region) (any, bool) {
+		s := readSorts(r)
+		return s, len(s) > 0
+	}
+}
+
+// Departments reads the search scope dropdown.
+func Departments() FieldRule {
+	return func(_ *Extractor, r Region) (any, bool) {
+		d := readDepartments(r)
+		return d, len(d) > 0
+	}
+}
+
 // ContainsText reports whether the region's text carries one of these phrases.
 func ContainsText(phrases ...string) FieldRule {
 	return func(_ *Extractor, r Region) (any, bool) {

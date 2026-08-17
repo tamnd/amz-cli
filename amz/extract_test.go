@@ -112,9 +112,12 @@ func TestLevel4CountNotIncreasing(t *testing.T) {
 		// of a variation is stated in two hidden inputs and in no named region,
 		// so there is no rung to climb to.
 		FamilyProduct: 1,
-		// Every search field is anchored on data-component-type or data-cy,
-		// which is the vocabulary Amazon built the result card out of.
-		FamilySearch: 0,
+		// departments, from #searchDropdownBox. Every other search field is
+		// anchored on data-component-type or data-cy, which is the vocabulary
+		// Amazon built the result card out of, but the scope dropdown in the
+		// header carries only an id and sits outside every named region on the
+		// page.
+		FamilySearch: 1,
 		// rank, title, price and currency on a chart tile. A bestseller tile is
 		// the oldest markup on the site: it names its container with
 		// id="gridItemRoot" and names nothing inside it, so the four fields

@@ -263,23 +263,78 @@ is what v0.2.1 does.`,
 	},
 }, {
 	Name:     "search-depth",
-	Headline: "search stops well before the result count it prints.",
-	Body: `a search states a result estimate in the millions and serves a bounded
-number of pages. the estimate is Amazon's own number for how many things
-match, not an offer to show you them, and paging past the end returns the
-last page again rather than an error.
+	Headline: "every search stops at 306 results, whatever total it prints.",
+	Body: `a search says "over 40,000 results" and serves 20 pages of about 16 each.
+that is 306 results and it is the same 306 whether the corpus is forty
+thousand or four hundred. the total is Amazon's number for how many things
+match, not an offer to show them to you.
 
-so amz stops at the measured ceiling and says how many pages it read
-against how many the page claimed, measured ` + measured + `. a run that quietly
-returned the last page four times over would produce duplicate rows that
-look like data.
+measured ` + measured + `. page 20 is the last real page. page 21 returns six filler
+cards, no result strip, and a range that reads "321-306", which is the page
+telling you it has gone past its own end. amz treats an inverted range as
+terminal and stops there rather than emitting six cards that look like data.
 
-narrowing beats paging. a refinement cuts the result set at the source and
-gets you deeper into what you actually wanted.`,
+so paging is not the way through and narrowing is. each refinement gets its
+own 306, which is why --all splits the query into one search per value of a
+refinement group and unions the results on ASIN. that is expensive and
+--dry-run prices it before anything is fetched.`,
 	Do: []string{
-		"amz refine <query>                     the refinements available for a query",
-		"amz search <query> --node <id>         narrow to a department",
-		"amz search <query> --sort price-asc    reach a different end of the same set",
+		"amz refine <query>                     every refinement group this query offers",
+		"amz search <query> --refine p_123=id   narrow at the source",
+		"amz search <query> --all --dry-run     what a partitioned run would cost",
+		"amz search <query> --all               the union, past the ceiling",
+	},
+}, {
+	Name:     "refinements",
+	Headline: "the filter codes are per query, so amz reads them instead of shipping a table.",
+	Body: `rh terms look global and almost none of them are. p_123 is brand and p_6 is
+seller everywhere, but p_n_feature_thirteen_browse-bin means one thing under
+laptops and something else under coffee, and p_n_g-1003532609111 is Key Count
+on a keyboard search and does not exist anywhere else.
+
+six codes are compiled into this binary and every other code amz sends came
+off the page it is about to filter.
+
+that matters because Amazon does not reject an rh term it does not
+understand. it drops the term and returns the unfiltered result set with a
+200 and a full grid, so a wrong code gives you a search that looks filtered
+and is not. v0.2.1 sent p_72:1248882011 for four stars and up where this
+marketplace offers 1248879011, measured ` + measured + `, and every "4 stars and up"
+search it ever ran was unfiltered.
+
+so amz resolves --brand, --seller, --stars and --condition against the
+sidebar of the query you asked about, and after the filtered page comes back
+it checks that the sidebar marks each term applied. if it does not, the run
+fails rather than handing you rows.`,
+	Do: []string{
+		"amz refine <query>                          the groups this query offers",
+		"amz refine <query> --group p_123            the values of one group",
+		"amz search <query> --refine p_123=213704    filter by an id you read",
+		"amz search <query> --brand Logitech         resolve the id, one extra request",
+	},
+}, {
+	Name:     "browse-tree",
+	Headline: "a browse page links its neighbours and never says which are children.",
+	Body: `amz tree walks browse nodes outward from one node. it is not a hierarchy
+and the record does not claim to be.
+
+a /b page carries no breadcrumb, no a-breadcrumb region and no subnav
+element, measured ` + measured + ` on both browse captures. children and siblings are
+linked with identical markup and nothing distinguishes them, so the field is
+called related and the walk reports distance from where it started rather
+than depth in a tree.
+
+the edge upwards exists elsewhere. a product's best sellers rank line names
+the node it ranks in and links it, so the way to find a node's parent is to
+come at it from an item inside it.
+
+one request per node. depth 2 on a broad category is hundreds of them, which
+is why the default depth is 1 and --max-nodes stops the walk out loud.`,
+	Do: []string{
+		"amz tree <node>                     the neighbours, one hop",
+		"amz tree <node> --depth 2           two hops, hundreds of requests",
+		"amz category <node> --related       the links off a single page",
+		"amz product <asin> --json           the rank line, which does name a node",
 	},
 }}
 

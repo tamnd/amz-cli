@@ -340,6 +340,8 @@ func Root() *cobra.Command {
 	root.AddCommand(
 		productCmd(app),
 		searchCmd(app),
+		refineCmd(app),
+		treeCmd(app),
 		reviewsCmd(app),
 		qaCmd(app),
 		offersCmd(app),

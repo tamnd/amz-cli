@@ -117,6 +117,58 @@ func cardRow(c amz.Card) Row {
 	}
 }
 
+// searchPageRow is one page of a search rather than one result on it.
+//
+// It carries what the cards cannot: the range Amazon printed, how many of the
+// cards were advertising, and whether the walk was still free to go on. A caller
+// counting coverage needs page_size beside cards, because a page that says it is
+// showing 1-16 hands over 22 cards.
+func searchPageRow(p amz.SearchPage) Row {
+	return Row{
+		Cols:  []string{"page", "from", "to", "total", "cards", "sponsored", "page_size", "sort", "refinements", "url"},
+		Vals:  []string{itoa(p.Page), itoa(p.From), itoa(p.To), i64(int64(p.Total)), itoa(len(p.Cards)), itoa(p.SponsoredCount), itoa(p.PageSize), p.Sort, itoa(len(p.Refinements)), p.URL},
+		Value: p, URL: p.URL,
+	}
+}
+
+// refineGroupRow is one refinement group with its value count.
+//
+// The values are in the JSON and not in the table on purpose: a brand group has
+// 164 of them and a column holding all 164 is not a column. Pass --group to get
+// a row per value instead.
+func refineGroupRow(g amz.RefineGroup) Row {
+	return Row{
+		Cols:  []string{"group", "label", "scope", "values"},
+		Vals:  []string{g.Code, g.Label, g.Scope, itoa(len(g.Values))},
+		Value: g,
+	}
+}
+
+// refineValueRow is one value of one group, spelled the way --refine wants it.
+//
+// The refine column is the flag to copy, so nobody has to work out that the id
+// and the group join with an equals sign.
+func refineValueRow(g amz.RefineGroup, v amz.RefineValue) Row {
+	val := map[string]any{
+		"group": g.Code, "group_label": g.Label, "scope": g.Scope,
+		"id": v.ID, "label": v.Label, "applied": v.Applied,
+	}
+	return Row{
+		Cols:  []string{"group", "id", "label", "applied", "refine"},
+		Vals:  []string{g.Code, v.ID, v.Label, boolStr(v.Applied), g.Code + "=" + v.ID},
+		Value: val,
+	}
+}
+
+// departmentRow is one search alias for i=.
+func departmentRow(d amz.Department) Row {
+	return Row{
+		Cols:  []string{"alias", "label"},
+		Vals:  []string{d.Alias, d.Label},
+		Value: d,
+	}
+}
+
 func reviewRow(r amz.Review) Row {
 	return Row{
 		Cols:  []string{"review_id", "asin", "reviewer_name", "rating", "title", "verified_purchase", "helpful_votes", "country", "date", "url"},

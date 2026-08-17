@@ -351,7 +351,9 @@ func TestCmdTemplate(t *testing.T) {
 // the map the price decodes to.
 func TestCmdTemplatePrintsPricesAndNotMaps(t *testing.T) {
 	fixtureServer(t)
-	out, err := run(t, "search", "usb c cable", "--template", "{{.asin}} {{.price}}")
+	// Split, because a search now says on stderr how many sponsored placements
+	// it left out, and the point of this test is what lands on stdout.
+	out, _, err := runSplit(t, "search", "usb c cable", "--template", "{{.asin}} {{.price}}")
 	if err != nil {
 		t.Fatal(err)
 	}
