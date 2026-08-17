@@ -4,6 +4,8 @@ import (
 	"strconv"
 
 	"github.com/tamnd/amz-cli/amz"
+	"github.com/tamnd/amz-cli/pkg/asin"
+	amzuri "github.com/tamnd/amz-cli/pkg/uri"
 )
 
 func f2(v float64) string {
@@ -209,6 +211,40 @@ func refRow(r amz.Ref) Row {
 		Vals:  []string{r.Kind, r.ID, r.Name, r.URL},
 		Value: r, URL: r.URL,
 	}
+}
+
+// idRow is the record `amz asin` emits when a format is named.
+//
+// The marketplace column is the one worth looking at. It is what the input said,
+// not what the tool is configured with, and it is empty for a bare id because a
+// bare id belongs to every storefront equally. A caller who needs to know
+// whether a link pointed at amazon.co.uk gets an answer, and a caller who typed
+// ten characters gets an honest blank rather than the default dressed up as a
+// fact.
+func idRow(app *App, id asin.ID) Row {
+	uri, _ := amzuri.Product(firstNonEmpty(id.Marketplace, app.Marketplace), id.Value)
+	v := map[string]any{
+		"asin": id.Value, "kind": string(id.Kind), "marketplace": id.Marketplace,
+		"uri": uri, "input": id.Raw,
+	}
+	if id.ISBN13 != "" {
+		v["isbn10"], v["isbn13"] = id.Value, id.ISBN13
+	}
+	return Row{
+		Cols:  []string{"asin", "kind", "marketplace", "isbn13", "uri"},
+		Vals:  []string{id.Value, string(id.Kind), id.Marketplace, id.ISBN13, uri},
+		Value: v,
+	}
+}
+
+// firstNonEmpty returns the first argument that is not the empty string.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func stringRow(col, val string) Row {

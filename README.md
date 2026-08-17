@@ -60,7 +60,7 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz seed` | enqueue ASINs or URLs into the crawl queue |
 | `amz crawl` | drain the crawl queue into the local store |
 | `amz db query <sql>` | query the optional local DuckDB store |
-| `amz asin <url>...` | extract the ASIN from any Amazon URL |
+| `amz asin <url>...` | read ids out of URLs, ISBNs and `amz:` URIs, offline |
 | `amz open <ASIN\|query>` | open the relevant Amazon page in the browser |
 | `amz robots` | the marketplace's live robots.txt and the group `amz` reads under |
 | `amz robots check <url>...` | ask robots.txt about a URL and print the rule that decided it |
@@ -160,9 +160,35 @@ total is visibly the wrong move rather than an invisible one.
 
 Prices are objects, not numbers. Each carries the string Amazon printed beside
 the parse of it, so a wrong parse is recoverable instead of lost, and a missing
-price is `null` rather than `0`. References to other entities carry a
-marketplace-scoped URI, `amz:us/product/B075F5X8BR`, because the same ASIN is a
-different product at a different price in every marketplace Amazon runs.
+price is `null` rather than `0`.
+
+References to other entities carry a URI in the `amz:` space, and whether that
+URI names a marketplace depends on the id. Products, browse nodes, charts and
+searches are written `amz:us/product/B075F5X8BR`, because the same ASIN is a
+different product at a different price in every storefront Amazon runs and
+`172282` is Electronics on `.com` and something else on `.de`. Sellers, brands,
+authors, reviews and deals are written `amz:seller/A2L77EE7U53NWQ` with no
+marketplace, because a merchant id is one company everywhere it trades. What
+varies by storefront is the feedback and the storefront page, and those are on
+the record, which says which marketplace it was read in.
+
+The store follows the same rule. Its product key is `(marketplace, asin)`, so
+crawling `.com` and `.co.uk` gives two rows rather than one row that changes
+price depending on which crawl ran last.
+
+```console
+$ amz asin "https://www.amazon.co.uk/dp/0439023483" -o jsonl
+amz: https://www.amazon.co.uk/dp/0439023483 is the uk marketplace, so reading uk and not us
+{"asin":"0439023483","input":"https://www.amazon.co.uk/dp/0439023483","isbn10":"0439023483","isbn13":"9780439023481","kind":"isbn10","marketplace":"uk","uri":"amz:uk/product/0439023483"}
+```
+
+That is one command, no network, and it is the fastest way to see what amz
+thinks a link is. The `marketplace` is what the link said, not what `-m` was set
+to, and a link wins over the flag: somebody who pastes an `amazon.co.uk` URL and
+leaves the default at `us` meant the URL, so amz reads the UK and says so on
+stderr. A bare ASIN leaves `marketplace` empty, because ten characters belong to
+every storefront equally and filling it in would be the default dressed up as a
+fact.
 
 `--depth` decides how much of a product page is read:
 

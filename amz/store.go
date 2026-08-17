@@ -39,27 +39,95 @@ func OpenStore(path string) (*Store, error) {
 		_ = os.MkdirAll(dir, 0o755)
 	}
 	s := &Store{path: path, bin: bin}
-	if err := s.exec(context.Background(), schemaSQL); err != nil {
+	ctx := context.Background()
+	if err := s.checkSchema(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.exec(ctx, schemaSQL); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
+// checkSchema refuses a database written by an older build.
+//
+// The test is whether a products table exists without a marketplace in its key,
+// which is exactly the v0.2 shape. A file that does not exist yet, or one with
+// no products table, is new and gets the current schema. CREATE TABLE IF NOT
+// EXISTS would otherwise leave the old table in place and every write would
+// carry on merging storefronts, quietly, forever.
+func (s *Store) checkSchema(ctx context.Context) error {
+	if _, err := os.Stat(s.path); err != nil {
+		return nil
+	}
+	rows, err := s.Query(ctx,
+		"SELECT count(*) AS n FROM information_schema.columns WHERE table_name='products' AND column_name='uri';")
+	if err != nil {
+		// An unreadable file is not an old schema, and saying so would send
+		// somebody to delete a database whose real problem is a permission bit.
+		return nil
+	}
+	tables, err := s.Query(ctx,
+		"SELECT count(*) AS n FROM information_schema.tables WHERE table_name='products';")
+	if err != nil || len(tables) == 0 || asInt64(tables[0]["n"]) == 0 {
+		return nil
+	}
+	if len(rows) > 0 && asInt64(rows[0]["n"]) > 0 {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", s.path, ErrOldSchema)
+}
+
 // Path returns the database file path.
 func (s *Store) Path() string { return s.path }
 
+// The schema, and the one thing about it worth reading before the columns.
+//
+// Every table whose id space is per marketplace carries the marketplace in its
+// primary key. B075F5X8BR on amazon.com and B075F5X8BR on amazon.co.uk are two
+// listings with different prices, different sellers and sometimes different
+// products, and the previous schema keyed products on the ASIN alone, so a crawl
+// of both storefronts kept whichever ran last and reported one row. That is the
+// worst kind of wrong: no error, no warning, and a number that looks like an
+// answer.
+//
+// Browse nodes are per marketplace for the same reason, 172282 being Electronics
+// on .com and something else on .de, so categories and charts are scoped too.
+//
+// Sellers, brands and authors are not scoped, and that is deliberate rather than
+// an oversight. A merchant id is global across Amazon: A2L77EE7U53NWQ is one
+// company everywhere it trades. What varies by storefront is the feedback and
+// the storefront page, and those live in the record, which carries the
+// marketplace it was measured in. See notes/Spec/3007/04_graph.md section 1.
 const schemaSQL = `
-CREATE TABLE IF NOT EXISTS products (asin TEXT PRIMARY KEY, marketplace TEXT, data JSON, fetched_at TIMESTAMP);
-CREATE TABLE IF NOT EXISTS reviews (review_id TEXT PRIMARY KEY, asin TEXT, data JSON, fetched_at TIMESTAMP);
-CREATE TABLE IF NOT EXISTS qa (qa_id TEXT PRIMARY KEY, asin TEXT, data JSON, fetched_at TIMESTAMP);
-CREATE TABLE IF NOT EXISTS offers (asin TEXT, seller_id TEXT, data JSON, fetched_at TIMESTAMP);
-CREATE TABLE IF NOT EXISTS bestsellers (list_type TEXT, node_id TEXT, rank INT, asin TEXT, data JSON, fetched_at TIMESTAMP);
-CREATE TABLE IF NOT EXISTS categories (node_id TEXT PRIMARY KEY, data JSON, fetched_at TIMESTAMP);
-CREATE TABLE IF NOT EXISTS brands (slug TEXT PRIMARY KEY, data JSON, fetched_at TIMESTAMP);
-CREATE TABLE IF NOT EXISTS sellers (seller_id TEXT PRIMARY KEY, data JSON, fetched_at TIMESTAMP);
-CREATE TABLE IF NOT EXISTS authors (slug TEXT PRIMARY KEY, data JSON, fetched_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS products (marketplace TEXT, asin TEXT, uri TEXT, data JSON, fetched_at TIMESTAMP, PRIMARY KEY (marketplace, asin));
+CREATE TABLE IF NOT EXISTS reviews (review_id TEXT PRIMARY KEY, marketplace TEXT, asin TEXT, data JSON, fetched_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS qa (qa_id TEXT PRIMARY KEY, marketplace TEXT, asin TEXT, data JSON, fetched_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS offers (marketplace TEXT, asin TEXT, seller_id TEXT, data JSON, fetched_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS bestsellers (marketplace TEXT, list_type TEXT, node_id TEXT, rank INT, asin TEXT, data JSON, fetched_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS categories (marketplace TEXT, node_id TEXT, uri TEXT, data JSON, fetched_at TIMESTAMP, PRIMARY KEY (marketplace, node_id));
+CREATE TABLE IF NOT EXISTS brands (slug TEXT PRIMARY KEY, uri TEXT, data JSON, fetched_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS sellers (seller_id TEXT PRIMARY KEY, uri TEXT, data JSON, fetched_at TIMESTAMP);
+CREATE TABLE IF NOT EXISTS authors (slug TEXT PRIMARY KEY, uri TEXT, data JSON, fetched_at TIMESTAMP);
 CREATE TABLE IF NOT EXISTS queue (id BIGINT, url TEXT, entity TEXT, priority INT, status TEXT);
+INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '2');
 `
+
+// SchemaVersion is the shape of the tables this build writes.
+//
+// Version 1 keyed products on the ASIN alone. There is no migration from it and
+// there is not going to be one, because a version 1 database has already lost
+// the data a migration would need: two storefronts collapsed into one row and
+// the row that lost is gone. Opening one is refused with a message that says to
+// delete it and crawl again, which is honest about the cost and does not pretend
+// a rebuild is a recovery.
+const SchemaVersion = 2
+
+// ErrOldSchema is returned when the database on disk predates the marketplace
+// scoped keys.
+var ErrOldSchema = errors.New(
+	"this database was written with the v0.2 schema, which keyed products on the ASIN alone and so merged marketplaces into one row: delete it and crawl again")
 
 // exec runs a SQL script against the database file. Writes are serialized so
 // concurrent crawl workers never collide on DuckDB's exclusive file lock.
@@ -115,32 +183,57 @@ func (s *Store) upsert(ctx context.Context, table string, cols []string, vals []
 	return s.exec(ctx, b.String())
 }
 
-// PutProduct upserts a product record.
+// ErrUnscoped is returned when a record that belongs to one storefront arrives
+// without saying which.
+//
+// The store rejects it rather than filing it under an empty marketplace, because
+// an empty marketplace is its own key: the record would come back from a query
+// for neither the US nor the UK, and the next crawl of either storefront would
+// leave it there as a permanent orphan that nothing overwrites.
+var ErrUnscoped = errors.New("record has no marketplace, so it cannot be stored under one")
+
+// PutProduct upserts a product record, keyed on the marketplace and the ASIN.
+//
+// The two together are the key, so writing the same ASIN from two storefronts
+// gives two rows rather than one row that changes price depending on which crawl
+// ran last. That is the entire point of this milestone and it is enforced here
+// and by the primary key, not by asking callers to remember.
 func (s *Store) PutProduct(ctx context.Context, p Product) error {
+	if p.Marketplace == "" {
+		return fmt.Errorf("product %s: %w", p.ASIN, ErrUnscoped)
+	}
+	uri := ""
+	if r := p.Ref(); r != nil {
+		uri = r.URI
+	}
 	return s.upsert(ctx, "products",
-		[]string{"asin", "marketplace", "data", "fetched_at"},
-		[]any{p.ASIN, p.Marketplace, jsonOf(p), p.FetchedAt.Format("2006-01-02 15:04:05")})
+		[]string{"marketplace", "asin", "uri", "data", "fetched_at"},
+		[]any{p.Marketplace, p.ASIN, uri, jsonOf(p), p.FetchedAt.Format("2006-01-02 15:04:05")})
 }
 
 // PutReview upserts a review record.
+//
+// A review id is global, so it stays the primary key. The marketplace is carried
+// alongside because the product it is about is scoped, and a join back to
+// products needs both halves of that key.
 func (s *Store) PutReview(ctx context.Context, r Review) error {
 	return s.upsert(ctx, "reviews",
-		[]string{"review_id", "asin", "data", "fetched_at"},
-		[]any{r.ReviewID, r.ASIN, jsonOf(r), r.FetchedAt.Format("2006-01-02 15:04:05")})
+		[]string{"review_id", "marketplace", "asin", "data", "fetched_at"},
+		[]any{r.ReviewID, r.Marketplace, r.ASIN, jsonOf(r), r.FetchedAt.Format("2006-01-02 15:04:05")})
 }
 
 // PutQA upserts a Q&A record.
 func (s *Store) PutQA(ctx context.Context, q QA) error {
 	return s.upsert(ctx, "qa",
-		[]string{"qa_id", "asin", "data", "fetched_at"},
-		[]any{q.QAID, q.ASIN, jsonOf(q), q.FetchedAt.Format("2006-01-02 15:04:05")})
+		[]string{"qa_id", "marketplace", "asin", "data", "fetched_at"},
+		[]any{q.QAID, q.Marketplace, q.ASIN, jsonOf(q), q.FetchedAt.Format("2006-01-02 15:04:05")})
 }
 
 // PutBestseller appends a chart entry.
 func (s *Store) PutBestseller(ctx context.Context, e BestsellerEntry) error {
 	return s.upsert(ctx, "bestsellers",
-		[]string{"list_type", "node_id", "rank", "asin", "data", "fetched_at"},
-		[]any{e.ListType, e.NodeID, e.Rank, e.ASIN, jsonOf(e), e.FetchedAt.Format("2006-01-02 15:04:05")})
+		[]string{"marketplace", "list_type", "node_id", "rank", "asin", "data", "fetched_at"},
+		[]any{e.Marketplace, e.ListType, e.NodeID, e.Rank, e.ASIN, jsonOf(e), e.FetchedAt.Format("2006-01-02 15:04:05")})
 }
 
 // Enqueue inserts a queue item if its URL is not already present.

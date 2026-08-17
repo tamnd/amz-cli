@@ -55,14 +55,18 @@ func (c *Client) FetchQA(ctx context.Context, asin string, emit func(QA) error) 
 		if q == "" {
 			return true
 		}
-		sum := md5.Sum([]byte(asin + "|" + q + "|" + ans))
+		// The marketplace is in the hash because the id is the primary key and
+		// Amazon publishes the same question and answer on several storefronts.
+		// Without it the .co.uk pair overwrites the .com one.
+		sum := md5.Sum([]byte(c.mkt.Slug + "|" + asin + "|" + q + "|" + ans))
 		qa := QA{
-			QAID:      hex.EncodeToString(sum[:]),
-			ASIN:      asin,
-			Question:  strings.TrimSpace(q),
-			Answer:    strings.TrimSpace(ans),
-			URL:       u,
-			FetchedAt: time.Now().UTC(),
+			QAID:        hex.EncodeToString(sum[:]),
+			Marketplace: c.mkt.Slug,
+			ASIN:        asin,
+			Question:    strings.TrimSpace(q),
+			Answer:      strings.TrimSpace(ans),
+			URL:         u,
+			FetchedAt:   time.Now().UTC(),
 		}
 		if err := emit(qa); err != nil {
 			perr = err
