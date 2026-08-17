@@ -191,7 +191,12 @@ func (p SearchPage) Exhausted() bool {
 // Review is a single product review.
 type Review struct {
 	ReviewID string `json:"review_id"`
-	ASIN     string `json:"asin"`
+	// Marketplace is the storefront this review was read in, and it is on the
+	// row rather than left to be inferred from the ASIN. The same ASIN is a
+	// different listing in every storefront, so a review row without it cannot
+	// be joined back to the product it is about.
+	Marketplace string `json:"marketplace"`
+	ASIN        string `json:"asin"`
 	// Author is the reviewer. It is almost always unresolved: the profile link
 	// goes to /gp/profile/, which robots.txt disallows, so amz has a display
 	// name and no identifier to go with it and says exactly that rather than
@@ -218,6 +223,7 @@ type Review struct {
 // QA is a question-and-answer pair.
 type QA struct {
 	QAID         string    `json:"qa_id"`
+	Marketplace  string    `json:"marketplace"`
 	ASIN         string    `json:"asin"`
 	Question     string    `json:"question"`
 	QuestionBy   string    `json:"question_by,omitempty"`
@@ -235,6 +241,7 @@ type QA struct {
 // off a different surface: one winning offer with delivery promises and a
 // coupon attached, rather than a flat list of everybody selling the item.
 type OfferListing struct {
+	Marketplace  string    `json:"marketplace"`
 	ASIN         string    `json:"asin"`
 	Price        float64   `json:"price"`
 	Currency     string    `json:"currency"`
@@ -252,6 +259,7 @@ type OfferListing struct {
 
 // BestsellerEntry is one ranked item in a chart.
 type BestsellerEntry struct {
+	Marketplace  string    `json:"marketplace"`
 	ListType     string    `json:"list_type"`
 	Category     string    `json:"category,omitempty"`
 	NodeID       string    `json:"node_id,omitempty"`

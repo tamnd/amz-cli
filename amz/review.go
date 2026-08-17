@@ -92,7 +92,7 @@ func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
 	}
 	var out []Review
 	doc.Find(`div[data-hook="review"]`).Each(func(_ int, s *goquery.Selection) {
-		r := Review{ASIN: asin, URL: pageURL, FetchedAt: time.Now().UTC()}
+		r := Review{Marketplace: c.mkt.Slug, ASIN: asin, URL: pageURL, FetchedAt: time.Now().UTC()}
 		r.ReviewID, _ = s.Attr("id")
 		r.ReviewerName = collapseSpace(s.Find(`span.a-profile-name`).First().Text())
 		if href, ok := s.Find(`a.a-profile`).First().Attr("href"); ok {
@@ -107,10 +107,7 @@ func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
 		var raw string
 		r.Country, raw = splitReviewDate(dateLine)
 		r.Date = NewDate(raw)
-		r.Author = NamedRef(RefPerson, r.ReviewerName)
-		if r.ReviewerID != "" {
-			r.Author = NewRef(RefPerson, c.mkt.Slug, r.ReviewerID, r.ReviewerName, "")
-		}
+		r.Author = PersonRef(r.ReviewerName)
 		if s.Find(`[data-hook="avp-badge"]`).Length() > 0 {
 			r.VerifiedPurchase = true
 		}
@@ -125,7 +122,11 @@ func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
 			r.VariantAttrs = parseVariantStrip(strip)
 		}
 		if r.ReviewID == "" {
-			sum := md5.Sum([]byte(asin + r.ReviewerName + r.Title + r.Text))
+			// A review Amazon did not stamp with an id gets one derived from its
+			// content, and the marketplace is in the hash. Without it the same review
+			// text under the same ASIN on two storefronts derives the same id, and the
+			// reviews table, which is keyed on that id, would keep one of them.
+			sum := md5.Sum([]byte(c.mkt.Slug + "|" + asin + "|" + r.ReviewerName + "|" + r.Title + "|" + r.Text))
 			r.ReviewID = hex.EncodeToString(sum[:])
 		}
 		out = append(out, r)

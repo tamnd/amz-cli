@@ -79,12 +79,40 @@ is never serialized, which is why sums it reports and sums you compute from
 `value` can differ in the last place. A missing price is `null`, never `0`.
 
 **Ref** points at another entity: `kind`, `id`, `name`, `uri`, `url`,
-`resolved`. The `uri` is marketplace scoped, `amz:us/product/B075F5X8BR`,
-because the same ASIN is a different product at a different price in every
-marketplace Amazon runs. `resolved` is false when amz has a name and no
-identifier, which is the normal state of a review author: the profile link goes
-to `/gp/profile/`, robots.txt disallows it, so the name is kept and the record
-admits it cannot resolve it.
+`resolved`. `resolved` is false when amz has a name and no identifier, which is
+the normal state of a review author: the profile link goes to `/gp/profile/`,
+robots.txt disallows it, so the name is kept and the record admits it cannot
+resolve it.
+
+The `uri` is an identifier in the `amz:` space, and every one amz emits is built
+in one place so that a product URI without a marketplace cannot exist:
+
+```
+amz:<marketplace>/product/<asin>
+amz:<marketplace>/node/<id>
+amz:<marketplace>/chart/<kind>/<node>
+amz:<marketplace>/search/<sha1 of the normalised query>
+amz:seller/<merchant>
+amz:brand/<store-uuid>
+amz:author/<author-asin>
+amz:review/<review-id>
+amz:person/<sha1 of the display name>
+amz:deal/<deal-id>
+```
+
+The first four carry a marketplace because their id spaces are per storefront:
+`B075F5X8BR` on `amazon.com` and `B075F5X8BR` on `amazon.co.uk` are two listings
+with different prices and sometimes different products, and `172282` is
+Electronics on `.com` and something else on `.de`. The rest do not, because a
+merchant id, a brand store and an author are one thing on every Amazon site. A
+seller's feedback is per storefront, and it lives on the record, which says
+which marketplace it was measured in.
+
+`amz:person` is the one identifier built from a display name rather than an id,
+because there is no id to build it from. It exists so a review keeps its author
+as a node the graph can hold an edge to instead of a loose string, and it is
+never `resolved`: two reviewers who both call themselves "Amazon Customer" hash
+to one node and nothing can be done about that.
 
 **Conn** is a partial collection: `loaded`, `total_count`, `complete`, `url`.
 `complete` is never omitted from the JSON, because a connection that is not

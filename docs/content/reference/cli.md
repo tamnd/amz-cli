@@ -107,8 +107,32 @@ capture ledger is kept.
 | Command | Purpose |
 | --- | --- |
 | `open <ASIN\|query>` | open the page in a browser (`--reviews`, `--print`) |
-| `asin <url>...` | extract the ASIN from any Amazon URL |
+| `asin <ASIN\|ISBN\|url\|amz: URI>...` | read ids out of anything, offline |
 | `info` | access tiers, marketplace, config summary |
 | `config path\|show\|init` | view and manage configuration |
 | `cache info\|clear` | inspect or clear the page cache |
 | `completion` | shell completion script |
+
+`asin` never touches the network. With no `-o` it prints one bare ASIN per line,
+so `amz asin "$url" | xargs amz product` keeps working. Name a format and it
+gives the whole identity instead: the kind of id, the storefront the input
+pointed at, the ISBN-13 when the id is a book, and the `amz:` URI the rest of
+the tool files things under.
+
+```console
+$ amz asin "https://www.amazon.co.uk/dp/0439023483" -o jsonl
+amz: https://www.amazon.co.uk/dp/0439023483 is the uk marketplace, so reading uk and not us
+{"asin":"0439023483","input":"https://www.amazon.co.uk/dp/0439023483","isbn10":"0439023483","isbn13":"9780439023481","kind":"isbn10","marketplace":"uk","uri":"amz:uk/product/0439023483"}
+```
+
+The ISBN-13 is computed from the ISBN-10 with the check digit recalculated, not
+copied, and a ten character string that fails the check digit is reported as a
+plain ASIN with no ISBN at all. A made up ISBN in an export is worse than a
+missing one, because nothing downstream can tell it is wrong.
+
+The note on stderr is the marketplace rule: a URL that names a storefront beats
+`--marketplace`, because somebody who pastes an `amazon.co.uk` link and leaves
+the default at `us` meant the link. Passing two URLs for two different
+storefronts in one run is a usage error rather than a choice made for you, since
+the currency, the number format and the availability strings all come from one
+marketplace.

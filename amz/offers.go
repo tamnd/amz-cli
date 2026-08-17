@@ -35,7 +35,7 @@ func (c *Client) FetchOffers(ctx context.Context, asin string, q OfferQuery, emi
 	}
 	var perr error
 	doc.Find("#aod-offer-list #aod-offer, #olpOfferList .olpOffer, .aod-offer").EachWithBreak(func(i int, s *goquery.Selection) bool {
-		o := OfferListing{ASIN: asin, Currency: c.mkt.Currency, URL: u, FetchedAt: time.Now().UTC()}
+		o := OfferListing{Marketplace: c.mkt.Slug, ASIN: asin, Currency: c.mkt.Currency, URL: u, FetchedAt: time.Now().UTC()}
 		o.Price, _ = ParsePrice(s.Find(".a-price .a-offscreen, .olpOfferPrice").First().Text())
 		o.Shipping = collapseSpace(s.Find("#aod-bottlecap-deliveryMessage, .olpShippingInfo").First().Text())
 		o.Condition = collapseSpace(s.Find("#aod-offer-heading, .olpCondition").First().Text())

@@ -179,7 +179,7 @@ func (c *Client) parseSearchPage(query, url string, page int, body []byte) (Sear
 // widget name rather than an ASIN.
 func (c *Client) readCard(d *Doc, r Region, fields []Field) (Card, bool) {
 	asin := r.Attr("data-asin")
-	if !bareASIN.MatchString(asin) {
+	if !isASIN(asin) {
 		return Card{}, false
 	}
 	e := NewExtractor(d)

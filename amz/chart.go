@@ -216,6 +216,7 @@ func (c *Client) parseChartPage(listType, category, node, url string, page int, 
 			continue
 		}
 		cp.Entries = append(cp.Entries, BestsellerEntry{
+			Marketplace:    c.mkt.Slug,
 			ListType:       listType,
 			Category:       category,
 			NodeID:         node,
@@ -256,12 +257,13 @@ func (c *Client) parseChartPage(listType, category, node, url string, page int, 
 // rather than a product and is skipped.
 func (c *Client) readTile(cp ChartPage, r Region, fields []Field, d *Doc) (BestsellerEntry, bool) {
 	asin := r.Attr("data-asin")
-	if !bareASIN.MatchString(asin) {
+	if !isASIN(asin) {
 		return BestsellerEntry{}, false
 	}
 	e := NewExtractor(d)
 	e.RunIn(r, fields)
 	entry := BestsellerEntry{
+		Marketplace:  c.mkt.Slug,
 		ListType:     cp.ListType,
 		Category:     cp.Category,
 		NodeID:       cp.NodeID,

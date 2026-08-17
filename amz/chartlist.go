@@ -92,7 +92,7 @@ func readChartList(doc *goquery.Document) chartList {
 	}
 	out.byASIN = make(map[string]ChartListItem, len(raw))
 	for _, e := range raw {
-		if !bareASIN.MatchString(e.ID) {
+		if !isASIN(e.ID) {
 			continue
 		}
 		it := ChartListItem{

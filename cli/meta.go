@@ -26,7 +26,7 @@ func openCmd(app *App) *cobra.Command {
 			switch {
 			case reviews:
 				target = c.ReviewURL(asinArg(args[0]), amz.ReviewQuery{}, 1)
-			case amz.ExtractASIN(args[0]) != "" || isBareASIN(args[0]):
+			case amz.ExtractASIN(args[0]) != "":
 				if target, err = resolveURL(c, args[0]); err != nil {
 					return err
 				}
@@ -37,24 +37,15 @@ func openCmd(app *App) *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), target)
 				return nil
 			}
-			return exit(codeFor(openBrowser(target)), openBrowser(target))
+			// Once. This used to call openBrowser twice, once for the exit code
+			// and once for the effect, which opened two tabs.
+			err = openBrowser(target)
+			return exit(codeFor(err), err)
 		},
 	}
 	cmd.Flags().BoolVar(&reviews, "reviews", false, "open the review page for an ASIN")
 	cmd.Flags().BoolVar(&printOnly, "print", false, "print the URL instead of opening it")
 	return cmd
-}
-
-func isBareASIN(s string) bool {
-	if len(s) != 10 {
-		return false
-	}
-	for _, r := range s {
-		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
-			return false
-		}
-	}
-	return true
 }
 
 func openBrowser(target string) error {
@@ -72,24 +63,48 @@ func openBrowser(target string) error {
 	return exec.Command(cmd, args...).Start()
 }
 
+// asinCmd is the offline identity command: it reads ids and never fetches.
+//
+// Two behaviours, chosen by whether a format was named. With no -o it prints one
+// bare ASIN per line, because that is what it has always done and what every
+// shell pipeline built on it expects. Name a format and it emits the whole
+// identity: what kind of id it is, which storefront the input pointed at, the
+// ISBN-13 when the id is a book, and the amz: URI the rest of the tool files
+// things under.
+//
+// Nothing here goes to the network, so it works on a plane and it is the fastest
+// way to see what amz thinks a link is.
 func asinCmd(app *App) *cobra.Command {
 	return &cobra.Command{
-		Use:   "asin <url>...",
-		Short: "Extract the ASIN from any Amazon URL",
+		Use:   "asin <ASIN|ISBN|url|amz: URI>...",
+		Short: "Read Amazon ids out of URLs, ISBNs and amz: URIs, without fetching",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			bare := Format(app.OutputFmt) == FormatAuto
+			var out *Output
+			if !bare {
+				o, err := app.Output()
+				if err != nil {
+					return err
+				}
+				defer func() { _ = o.Close() }()
+				out = o
+			}
 			found := false
 			for _, a := range args {
-				asin := amz.ExtractASIN(a)
-				if asin == "" && isBareASIN(a) {
-					asin = a
-				}
-				if asin == "" {
-					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "amz: no ASIN in %q\n", a)
+				id, err := amz.ParseID(a)
+				if err != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "amz: %q is not an ASIN, an ISBN or an amazon.com product URL\n", a)
 					continue
 				}
 				found = true
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), asin)
+				if bare {
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), id.Value)
+					continue
+				}
+				if err := out.Emit(idRow(app, id)); err != nil {
+					return err
+				}
 			}
 			if !found {
 				return exit(CodeNoData, fmt.Errorf("no ASIN found"))

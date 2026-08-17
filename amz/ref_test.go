@@ -127,13 +127,21 @@ func TestRecordsPointAtThemselves(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for name, ref := range map[string]*Ref{
-		"product":  p.Ref(),
-		"category": cat.Ref(),
-		"seller":   s.Ref(),
-		"brand":    b.Ref(),
-		"author":   a.Ref(),
+	// The prefix each record's URI has to start with. Products and browse nodes
+	// carry the marketplace because their id spaces are per storefront, and the
+	// rest do not because a merchant id, a brand store and an author are the
+	// same thing on every Amazon site. See notes/Spec/3007/04_graph.md section 1.
+	for name, tc := range map[string]struct {
+		ref  *Ref
+		want string
+	}{
+		"product":  {p.Ref(), "amz:us/product/"},
+		"category": {cat.Ref(), "amz:us/node/"},
+		"seller":   {s.Ref(), "amz:seller/"},
+		"brand":    {b.Ref(), "amz:brand/"},
+		"author":   {a.Ref(), "amz:author/"},
 	} {
+		ref := tc.ref
 		if ref == nil {
 			t.Errorf("%s: a fetched record cannot say what it is", name)
 			continue
@@ -141,11 +149,8 @@ func TestRecordsPointAtThemselves(t *testing.T) {
 		if !ref.Resolved {
 			t.Errorf("%s: %+v is unresolved, so nothing can be filed under it", name, ref)
 		}
-		// The marketplace is on the envelope because the fetch put it there. A
-		// URI without it would collide amazon.com with amazon.co.uk, which
-		// publish different prices for the same identifier.
-		if !strings.HasPrefix(ref.URI, "amz:us/") {
-			t.Errorf("%s: uri = %q, want it scoped to the marketplace", name, ref.URI)
+		if !strings.HasPrefix(ref.URI, tc.want) {
+			t.Errorf("%s: uri = %q, want it to start %q", name, ref.URI, tc.want)
 		}
 		if ref.Name == "" || ref.URL == "" {
 			t.Errorf("%s: %+v is missing the name or the URL", name, ref)

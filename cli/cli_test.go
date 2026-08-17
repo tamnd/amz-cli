@@ -310,6 +310,117 @@ func TestCmdExtractionFamilyAsArgument(t *testing.T) {
 	}
 }
 
+// Somebody who pastes an amazon.co.uk link and leaves --marketplace at its
+// default meant the link. Honouring the flag there gives a record for a
+// different listing at a different price under an id that looks right, which is
+// the kind of wrong that never announces itself.
+func TestCmdURLMarketplaceBeatsTheFlag(t *testing.T) {
+	out, errOut, err := runSplit(t, "product", "https://www.amazon.co.uk/dp/B08N5WRWNW", "--dry-run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut, "uk") || !strings.Contains(errOut, "not us") {
+		t.Errorf("nothing on stderr said the marketplace changed:\n%s", errOut)
+	}
+	// The note goes to stderr and nowhere near the records, because a caller
+	// piping stdout into jq must not see it.
+	if strings.TrimSpace(out) != "https://www.amazon.co.uk/dp/B08N5WRWNW" {
+		t.Errorf("stdout = %q, want the URL and nothing else", out)
+	}
+
+	// And the record it produces is filed under the storefront the link named.
+	rec, _, err := runSplit(t, "asin", "https://www.amazon.co.uk/dp/B08N5WRWNW", "-o", "jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rec, `"marketplace":"uk"`) {
+		t.Errorf("the record did not take the URL's storefront:\n%s", rec)
+	}
+}
+
+// And an explicit flag that agrees with nothing in the arguments is left alone,
+// because there is no URL to argue with it.
+func TestCmdBareASINKeepsTheFlag(t *testing.T) {
+	out, errOut, err := runSplit(t, "product", "B08N5WRWNW", "--dry-run", "-m", "de")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out) != "https://www.amazon.de/dp/B08N5WRWNW" {
+		t.Errorf("url = %q", out)
+	}
+	if errOut != "" {
+		t.Errorf("a bare id produced a note it had no reason to produce:\n%s", errOut)
+	}
+}
+
+// One run reads one marketplace: the currency, the number format and the
+// availability strings all come from it, so two URLs naming two storefronts have
+// no answer that is right for both.
+func TestCmdTwoMarketplacesInOneRun(t *testing.T) {
+	_, err := run(t, "product",
+		"https://www.amazon.com/dp/B08N5WRWNW",
+		"https://www.amazon.co.uk/dp/B08N5WRWNW", "--dry-run")
+	if codeFor(err) != CodeUsage {
+		t.Fatalf("expected usage exit, got %v (code %d)", err, codeFor(err))
+	}
+	if err == nil || !strings.Contains(err.Error(), "one run reads one") {
+		t.Errorf("error does not explain why: %v", err)
+	}
+}
+
+// `amz asin` stays the shell utility it has always been: one bare id per line,
+// nothing else, so `amz asin "$url" | xargs amz product` keeps working.
+func TestCmdAsinStaysPipeable(t *testing.T) {
+	out, _, err := runSplit(t, "asin",
+		"https://www.amazon.com/Some-Title/dp/B08N5WRWNW/ref=x",
+		"0-439-02348-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "B08N5WRWNW\n0439023483\n" {
+		t.Errorf("output = %q", out)
+	}
+}
+
+// Name a format and it gives the whole identity instead: what kind of id it is,
+// which storefront the input pointed at, the ISBN-13 for a book, and the URI the
+// rest of the tool files things under.
+func TestCmdAsinRecord(t *testing.T) {
+	out, _, err := runSplit(t, "asin", "https://www.amazon.co.uk/dp/0439023483", "-o", "jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &row); err != nil {
+		t.Fatalf("not json: %v\n%s", err, out)
+	}
+	if row["asin"] != "0439023483" || row["kind"] != "isbn10" {
+		t.Errorf("record = %v", row)
+	}
+	if row["isbn13"] != "9780439023481" {
+		t.Errorf("isbn13 = %v, want it computed from the check digit", row["isbn13"])
+	}
+	if row["marketplace"] != "uk" || row["uri"] != "amz:uk/product/0439023483" {
+		t.Errorf("the URL's storefront did not reach the record: %v", row)
+	}
+}
+
+// A bare id belongs to every storefront equally, so the marketplace column is
+// blank rather than filled with the default dressed up as a fact.
+func TestCmdAsinDoesNotInventAMarketplace(t *testing.T) {
+	out, err := run(t, "asin", "B08N5WRWNW", "-o", "jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &row); err != nil {
+		t.Fatal(err)
+	}
+	if row["marketplace"] != "" {
+		t.Errorf("a bare id came back scoped to %v", row["marketplace"])
+	}
+}
+
 func TestCmdUnknownMarketplace(t *testing.T) {
 	_, err := run(t, "product", "B08N5WRWNW", "-m", "zz")
 	if codeFor(err) != CodeUsage {

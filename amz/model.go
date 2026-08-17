@@ -1,6 +1,10 @@
 package amz
 
-import "time"
+import (
+	"time"
+
+	"github.com/tamnd/amz-cli/pkg/uri"
+)
 
 // The shared value types every record is built from.
 //
@@ -112,6 +116,12 @@ func indexAfter(s, sep string) int {
 // real person's display name and no way to get an id for them. Dropping the name
 // would lose data and inventing an id would be a lie, so the Ref carries the
 // name with Resolved false and says exactly that.
+//
+// Resolved and URI are therefore not the same question. Resolved means the tool
+// has the identifier Amazon issued for this thing. A review author has a URI,
+// because the graph needs a node to hang an edge on, and that URI is a hash of
+// the display name rather than an id anybody at Amazon would recognise, so
+// Resolved stays false. It is the only kind where the two disagree.
 type Ref struct {
 	Kind string `json:"kind"`
 	ID   string `json:"id,omitempty"`
@@ -125,32 +135,78 @@ type Ref struct {
 	Resolved bool `json:"resolved"`
 }
 
-// Ref kinds.
+// Ref kinds, which are the kinds of the amz: identifier space.
+//
+// They are aliases rather than a second list of string literals, so that a kind
+// this package uses and a kind pkg/uri knows how to build cannot drift apart.
 const (
-	RefProduct = "product"
-	RefBrand   = "brand"
-	RefSeller  = "seller"
-	RefNode    = "node"
-	RefAuthor  = "author"
-	RefPerson  = "person"
+	RefProduct = uri.KindProduct
+	RefBrand   = uri.KindBrand
+	RefSeller  = uri.KindSeller
+	RefNode    = uri.KindNode
+	RefAuthor  = uri.KindAuthor
+	RefPerson  = uri.KindPerson
+	RefReview  = uri.KindReview
+	RefDeal    = uri.KindDeal
 )
 
-// NewRef builds a resolved reference with a marketplace-scoped URI.
+// NewRef builds a reference and gives it an identifier when it can have one.
 //
-// It takes both an id and a marketplace to resolve, and not the id alone. The
-// same ASIN is a different product with a different price in every marketplace
-// Amazon runs, so "amz:/product/B075F5X8BR" would be an identifier that quietly
-// merges them. A reference that cannot say which marketplace it belongs to keeps
-// the name and the id it has and reports itself unresolved, which is the same
-// thing the review author does and for the same reason.
+// The URI comes from pkg/uri and is never assembled here, which is the point.
+// The same ASIN is a different product with a different price in every
+// marketplace Amazon runs, so "amz:/product/B075F5X8BR" would be an identifier
+// that quietly merges them, and one constructor is one place to make that
+// impossible rather than eleven call sites to keep honest.
+//
+// The marketplace is ignored for the kinds whose ids are global, which is
+// sellers, brands, authors, reviews and deals. Callers pass the client's
+// marketplace to all of them because that is the marketplace the page was read
+// in, and pkg/uri decides whether it belongs in the id.
+//
+// A reference the tool cannot identify keeps the name and the id it has and
+// reports itself unresolved, which is what the review author does.
 func NewRef(kind, marketplace, id, name, url string) *Ref {
 	if id == "" && name == "" {
 		return nil
 	}
 	r := &Ref{Kind: kind, ID: id, Name: name, URL: url}
-	if id != "" && marketplace != "" {
-		r.URI = "amz:" + marketplace + "/" + kind + "/" + id
-		r.Resolved = true
+	if id == "" {
+		return r
+	}
+	u, err := uri.New(kind, marketplace, id)
+	if err != nil {
+		// The id could not be scoped, so the reference says so rather than
+		// carrying an identifier that means a different thing in every
+		// storefront. Nothing is dropped: the name, the id and the URL survive.
+		return r
+	}
+	r.URI = u
+	r.Resolved = true
+	return r
+}
+
+// PersonRef builds the node for a review author, who has a name and no id.
+//
+// This is the one identifier in the space built from a display name, because
+// /gp/profile/ is disallowed and is not fetched, so there is nothing else to
+// build it from. Hashing the name is what makes the author a node the graph can
+// hold an edge to instead of a loose string on a review.
+//
+// It is deliberately not resolved. Two reviewers who both call themselves
+// "Amazon Customer" hash to one node and no amount of care fixes that, so the
+// reference says up front that this identity is weaker than the others. The
+// profile id Amazon sometimes puts in the review markup is kept on the review
+// itself rather than used as the key, because a person who appears with a
+// profile link on one review and without it on the next would otherwise become
+// two people.
+func PersonRef(name string) *Ref {
+	n := collapseSpace(name)
+	if n == "" {
+		return nil
+	}
+	r := &Ref{Kind: RefPerson, Name: n}
+	if u, err := uri.Person(n); err == nil {
+		r.URI = u
 	}
 	return r
 }

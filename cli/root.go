@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	"github.com/tamnd/amz-cli/amz"
+	"github.com/tamnd/amz-cli/pkg/asin"
 )
 
 // Version metadata, overridable at build time via -ldflags.
@@ -150,6 +152,47 @@ func (a *App) Config() amz.Config {
 	return cfg
 }
 
+// adoptURLMarketplace lets a pasted URL decide which storefront to read.
+//
+// Somebody who pastes an amazon.co.uk link and leaves --marketplace at its
+// default did not mean to read amazon.com, and honouring the flag there produces
+// a record for a different listing at a different price under an id that looks
+// right. So the URL wins, and it says so on stderr, because a tool that silently
+// ignores a flag you passed is worse than one that argues with you.
+//
+// Two arguments naming two storefronts is a usage error rather than a choice
+// made for you. One run reads one marketplace: the currency, the number format
+// and the availability strings all come from it, so there is no answer that is
+// right for both URLs.
+func (a *App) adoptURLMarketplace(args []string, w io.Writer) error {
+	from, slug := "", ""
+	for _, arg := range args {
+		if !amz.IsURL(arg) {
+			continue
+		}
+		u, err := url.Parse(arg)
+		if err != nil {
+			continue
+		}
+		m := asin.MarketplaceForHost(u.Host)
+		if m == "" || m == slug {
+			continue
+		}
+		if slug != "" {
+			return exit(CodeUsage, fmt.Errorf(
+				"%q and %q are different marketplaces, and one run reads one: split them into two commands", from, arg))
+		}
+		from, slug = arg, m
+	}
+	if slug == "" || slug == a.Marketplace {
+		return nil
+	}
+	_, _ = fmt.Fprintf(w, "amz: %s is the %s marketplace, so reading %s and not %s\n",
+		from, slug, slug, a.Marketplace)
+	a.Marketplace = slug
+	return nil
+}
+
 // Client builds a polite, block-aware client for the resolved marketplace.
 func (a *App) Client() (*amz.Client, error) {
 	if _, ok := amz.LookupMarketplace(a.Marketplace); !ok {
@@ -238,7 +281,7 @@ func Root() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       Version,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			app.Out = cmd.OutOrStdout()
 			// The notice is printed here rather than through MarkDeprecated for
 			// two reasons. MarkDeprecated hides the flag, and a compatibility
@@ -250,6 +293,7 @@ func Root() *cobra.Command {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
 					"amz: --flat is deprecated and is removed in v0.4.0. The nested record keeps the envelope and tells an absent field apart from a zero one.")
 			}
+			return app.adoptURLMarketplace(args, cmd.ErrOrStderr())
 		},
 	}
 

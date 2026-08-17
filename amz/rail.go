@@ -89,7 +89,7 @@ func railCards(r Region, base, region string) []Card {
 		if asin == "" {
 			asin = ExtractASIN(attrOf(s.Find("a[href*='/dp/']").First(), "href"))
 		}
-		if !bareASIN.MatchString(asin) || seen[asin] {
+		if !isASIN(asin) || seen[asin] {
 			return
 		}
 		seen[asin] = true
