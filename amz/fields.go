@@ -154,6 +154,20 @@ func productFields(base, asin string) []Field {
 		{Name: "answered_qs", Level: LevelAttr, Via: "#askATFLink",
 			Rule: Count("#askATFLink"), Why: "the answered question count, which survives the login wall on /ask"},
 
+		// The all-offers ingress is the only thing on the page that says how many
+		// other sellers there are. The panel it opens is built by javascript and
+		// /gp/offer-listing/ is disallowed and redirects anyway, so this count is
+		// the whole of what amz can know about the other offers.
+		{Name: "other_offers_count", Level: LevelAttr, Via: "#aod-ingress-link",
+			Rule: ParenCount("#aod-ingress-link"), Since: "2026-08-17",
+			Why: "how many buying options exist beyond the buy box, which the panel itself never reveals"},
+		{Name: "other_offers_from", Level: LevelAttr, Via: "#aod-ingress-link .a-offscreen",
+			Rule: PriceOf("#aod-ingress-link .a-offscreen"), Since: "2026-08-17",
+			Why: "the lowest price among the other offers, which is the one fact the ingress states"},
+		{Name: "other_offers_url", Level: LevelAttr, Via: "#aod-ingress-link[href]",
+			Rule: AttrOf("#aod-ingress-link, #buybox-see-all-buying-choices a", "href"), Since: "2026-08-17",
+			Why: "where the rest of the offers are, recorded even though the path is disallowed"},
+
 		// Rung 4 is the report. Adding one is allowed and has to be deliberate
 		// enough to move the number in TestLevel4CountNotIncreasing.
 		{Name: "parent_asin", Level: LevelSelector, Via: "#landingAsin[value], #ppd[data-asin]",

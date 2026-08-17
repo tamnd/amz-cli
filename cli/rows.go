@@ -2,6 +2,7 @@ package cli
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/tamnd/amz-cli/amz"
 	"github.com/tamnd/amz-cli/pkg/asin"
@@ -138,6 +139,42 @@ func offerRow(o amz.OfferListing) Row {
 		Vals:  []string{o.ASIN, f2(o.Price), o.Currency, o.Condition, o.SellerName, o.SellerID, o.FulfilledBy, o.Delivery, boolStr(o.IsBuyBox), o.URL},
 		Value: o, URL: o.URL,
 	}
+}
+
+// variantRow is one sibling of a variation family.
+//
+// The dimension values are flattened into a single cell in the order the twister
+// declared them, so a table of an apparel listing reads Colour then Size in every
+// row rather than in map order, which is different on every run. The JSON value
+// keeps the map.
+func variantRow(p amz.Product, s amz.Sibling, current bool) Row {
+	var vals []string
+	if p.Variation != nil {
+		for _, d := range p.Variation.Dimensions {
+			if v := s.Values[d.Name]; v != "" {
+				vals = append(vals, d.Name+": "+v)
+			}
+		}
+	}
+	v := map[string]any{
+		"asin": s.ASIN, "parent_asin": p.ParentASIN, "marketplace": p.Marketplace,
+		"values": s.Values, "image": s.Image, "price": s.Price,
+		"available": s.Available, "current": current,
+	}
+	return Row{
+		Cols:  []string{"asin", "variant", "price", "currency", "available", "current", "url"},
+		Vals:  []string{s.ASIN, strings.Join(vals, ", "), f2(s.Price.Float()), s.Price.Cur(), boolStr(deref(s.Available)), boolStr(current), amzProductURL(p, s.ASIN)},
+		Value: v, URL: amzProductURL(p, s.ASIN),
+	}
+}
+
+// amzProductURL points at a sibling on the same storefront the parent was read
+// from, which is the only marketplace the ASIN is known to exist in.
+func amzProductURL(p amz.Product, id string) string {
+	if i := strings.Index(p.URL, "/dp/"); i > 0 {
+		return p.URL[:i] + "/dp/" + id
+	}
+	return p.URL
 }
 
 func chartRow(e amz.BestsellerEntry) Row {

@@ -133,24 +133,58 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 		}
 	}
 
-	if p.Rating != nil || p.RatingsCount != nil {
-		// The page states how many people rated the product and shows the
-		// histogram, and it holds none of the reviews themselves. Both surfaces
-		// that do redirect to a sign-in, so this is a wall and not a gap in the
-		// parser, and the record says which of the two it is.
-		e.missSurface("reviews",
-			"amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only",
+	// The reviews medley carries a handful of full reviews, and until v0.3.0
+	// this parser threw them away and went to /product-reviews/ for the corpus.
+	// That URL redirects to a sign-in, so the page in hand is the only place
+	// reviews come from now.
+	p.ReviewSample = c.readReviews(p.ASIN, url, doc.Selection())
+	if len(p.ReviewSample) > 0 {
+		e.set("review_sample", len(p.ReviewSample), LevelSelector, `div[data-hook="review"]`)
+	}
+	if total := firstCount(p.ReviewsCount, p.RatingsCount); len(p.ReviewSample) > 0 || total != nil {
+		p.Reviews = NewConn(len(p.ReviewSample), total, c.corpusURL("/product-reviews/", p.ASIN))
+	}
+	if p.Reviews != nil && !p.Reviews.Complete {
+		// The page shows the histogram and a medley of full reviews, and the two
+		// surfaces holding the rest redirect to a sign-in, so this is a wall and
+		// not a gap in the parser. The total is the ratings count, because a
+		// modern detail page states that and no longer states a review count,
+		// and rating something is a lower bar than writing about it. So the
+		// denominator is an upper bound and the entry says which number it is.
+		e.missPartialSurface("reviews", p.Reviews.Loaded, countOf(p.Reviews.TotalCount),
+			"amazon requires a sign-in for the review corpus, and the detail page carries the histogram and the reviews medley only. the total is the ratings count, which is the largest number the page states",
 			[]string{"/product-reviews/", "/portal/customer-reviews/"},
-			"")
+			"amz why reviews")
 	}
 
+	p.QASample = c.readQA(p.ASIN, url, doc.Selection())
+	if len(p.QASample) > 0 {
+		e.set("qa_sample", len(p.QASample), LevelSelector, ".askTeaserQuestions")
+	}
 	if n := e.Int("answered_qs"); n > 0 {
-		// The question count is all /ask gives without a login, so the
-		// connection is honest about having loaded none of them.
-		p.Questions = NewConn(0, &n, c.BaseURL()+"/ask/questions/asin/"+asin)
+		p.Questions = NewConn(len(p.QASample), &n, c.corpusURL("/ask/questions/asin/", p.ASIN))
+	} else if len(p.QASample) > 0 {
+		p.Questions = NewConn(len(p.QASample), nil, c.corpusURL("/ask/questions/asin/", p.ASIN))
+	}
+	if p.Questions != nil && !p.Questions.Complete {
+		e.missPartialSurface("questions", p.Questions.Loaded, countOf(p.Questions.TotalCount),
+			"the ask region states the answered question count and carries the pairs themselves only sometimes, and /ask/questions/asin/ redirects to a sign-in",
+			[]string{"/ask/questions/asin/"},
+			"amz why qa")
 	}
 
 	p.Offer = c.buildOffer(e)
+	p.OtherOffers = c.buildOtherOffers(e, p.ASIN)
+	if p.OtherOffers != nil && !p.OtherOffers.Complete {
+		// One offer read out of fourteen, and no flag closes the gap. The panel
+		// is assembled by javascript from an endpoint that answers 404 to a
+		// direct request, and /gp/offer-listing/ is disallowed by robots.txt and
+		// redirects to this same page anyway.
+		e.missPartialSurface("other_offers", p.OtherOffers.Loaded, countOf(p.OtherOffers.TotalCount),
+			"the all-offers panel is built by javascript and states only its own count on the page",
+			[]string{"/gp/aod/ajax", "/gp/offer-listing/"},
+			"amz why offers")
+	}
 
 	if v, ok := e.Value("specs"); ok {
 		p.Details, _ = v.(map[string]string)
@@ -268,6 +302,49 @@ func (c *Client) buildOffer(e *Extractor) *Offer {
 		return nil
 	}
 	return &o
+}
+
+// corpusURL points at the surface holding the rest of a partial, and returns
+// empty when there is no id to point with.
+//
+// product_coupon is the capture that made this necessary: it carries no ASIN in
+// any of the places the parser looks, so the naive concatenation produced
+// https://www.amazon.com/product-reviews/ with nothing on the end. That is a
+// URL, it resolves, and it has nothing to do with the product in hand, which is
+// worse than saying nothing.
+func (c *Client) corpusURL(path, asin string) string {
+	if asin == "" {
+		return ""
+	}
+	return c.BaseURL() + path + asin
+}
+
+// buildOtherOffers turns the all-offers ingress into a connection.
+//
+// The buy box is one offer and the ingress says how many there are in total, so
+// the connection is loaded one of that many. It counts the buy box as loaded
+// rather than reporting zero of fourteen, because the buy box is one of the
+// fourteen and a caller who has it has read one of them.
+//
+// It returns nil when the page has no ingress at all, which is the ordinary case
+// for a product only Amazon sells. That is a complete answer and not a partial
+// one, and claiming otherwise would put a missed entry on every such record.
+func (c *Client) buildOtherOffers(e *Extractor, asin string) *Conn {
+	total := e.Int("other_offers_count")
+	if total == 0 {
+		return nil
+	}
+	url := e.Str("other_offers_url")
+	if url == "" {
+		url = c.OffersURL(asin)
+	} else if strings.HasPrefix(url, "/") {
+		url = c.BaseURL() + url
+	}
+	loaded := 0
+	if e.Str("price") != "" || e.Str("sold_by") != "" {
+		loaded = 1
+	}
+	return NewConn(loaded, &total, url)
 }
 
 // brandIDIn reads the browse node out of a brand storefront URL, which is the

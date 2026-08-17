@@ -245,6 +245,16 @@ func writeNodeText(b *strings.Builder, n *html.Node) {
 	}
 }
 
+// plural picks the singular or the plural for a count. The misses in an
+// envelope are read by people, and "1 recommendation strips" is the kind of
+// sentence that makes a reader doubt the number in front of it.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
 // collapseSpace squeezes runs of whitespace into single spaces.
 func collapseSpace(s string) string {
 	return strings.Join(strings.Fields(s), " ")

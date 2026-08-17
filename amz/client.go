@@ -391,13 +391,17 @@ func (c *Client) fetch(ctx context.Context, rawURL string) ([]byte, error) {
 		case PageCaptcha:
 			// No retry. Hammering a CAPTCHA is how a polite client becomes an
 			// impolite one without anybody deciding to.
-			return nil, ErrBlocked
+			//
+			// The URL is on the front of every one of these because a failure
+			// nobody can reproduce is a failure nobody can report, and the
+			// message asks the reader to report it.
+			return nil, fmt.Errorf("%s: %w", rawURL, ErrBlocked)
 
 		case PageSignIn:
 			return nil, &SignInError{URL: rawURL, Redirect: final}
 
 		case PageNotFound:
-			return nil, ErrNotFound
+			return nil, fmt.Errorf("%s: %w", rawURL, ErrNotFound)
 
 		case PageInterstitial:
 			if interstitials >= len(interstitialBackoff) {

@@ -22,6 +22,39 @@ func (c *Client) OffersURL(asin string) string {
 
 var sellerIDRe = regexp.MustCompile(`seller=([A-Z0-9]+)`)
 
+// BuyBoxListing renders the buy box as a row of the same shape amz offers has
+// always emitted, so the one offer that can still be read arrives in the format
+// callers already parse.
+//
+// It returns nil when the page had no buy box, which is a real state and not an
+// error: an unavailable listing has a title, a rating and nothing to buy.
+func (p Product) BuyBoxListing() *OfferListing {
+	if p.Offer == nil {
+		return nil
+	}
+	o := OfferListing{
+		Marketplace: p.Marketplace,
+		ASIN:        p.ASIN,
+		Condition:   p.Offer.Condition,
+		Delivery:    p.Offer.Availability,
+		URL:         p.URL,
+		FetchedAt:   p.FetchedAt,
+		IsBuyBox:    true,
+	}
+	if p.Offer.Price != nil {
+		o.Price = p.Offer.Price.Float()
+		o.Currency = p.Offer.Price.Cur()
+	}
+	if p.Offer.SoldBy != nil {
+		o.SellerName = p.Offer.SoldBy.Name
+		o.SellerID = p.Offer.SoldBy.ID
+	}
+	if p.Offer.ShipsFrom != nil {
+		o.FulfilledBy = p.Offer.ShipsFrom.Name
+	}
+	return &o
+}
+
 // FetchOffers streams buying options for an ASIN.
 func (c *Client) FetchOffers(ctx context.Context, asin string, q OfferQuery, emit func(OfferListing) error) error {
 	u := c.OffersURL(asin)

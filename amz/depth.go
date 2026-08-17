@@ -148,7 +148,7 @@ func (c *Client) FetchProductDepth(ctx context.Context, asinOrURL string, d Dept
 		if n := len(p.Rails); n > 0 {
 			p.Envelope.Missed = append(p.Envelope.Missed, Miss{
 				Field: "rails",
-				Why:   fmt.Sprintf("the page carries %d recommendation strips and this depth drops them", n),
+				Why:   fmt.Sprintf("the page carries %d recommendation %s and this depth drops them", n, plural(n, "strip", "strips")),
 				Have:  0,
 				Total: int64(n),
 				Fix:   "amz product --depth full",
