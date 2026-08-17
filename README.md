@@ -139,12 +139,13 @@ were, when they were retrieved, which region or payload answered each field, and
 what was looked for and not found.
 
 ```console
-$ amz product B075F5X8BR -o json | jq -r '.envelope.via.price'
+$ amz product B075F5X8BR -o jsonl | jq -r '.envelope.via.price'
 corePrice
 
-$ amz product B075F5X8BR -o json | jq -r '.envelope.missed[] | .field + ": " + .why'
+$ amz product B075F5X8BR -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
 similar_asins: product region "similarities" or "sims-consolidated-2_feature_div" not present on this page
 reviews: amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only
+rails: the page carries 2 recommendation strips and this depth drops them
 ```
 
 That second line is the one that matters. If a field is missing and nothing in

@@ -325,8 +325,8 @@ amz product B084DWG2VQ -o csv --fields asin,price,savings_pct,rank
 amz search "usb c cable" --template '{{.asin}} {{.price}} {{.title}}'
 
 # the envelope is part of the record, so provenance queries are ordinary queries
-amz product B084DWG2VQ -o json | jq '.envelope.via.price'
-amz product B084DWG2VQ -o json | jq '.envelope.missed[] | .field + ": " + .why'
+amz product B084DWG2VQ -o jsonl | jq -r '.envelope.via.price'
+amz product B084DWG2VQ -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
 
 # a typed column out of the local store's JSON
 amz db query "select asin, (data->'offer'->'price'->>'value')::double price from products order by price desc limit 10"

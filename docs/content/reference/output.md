@@ -69,8 +69,8 @@ that want the currency and the string Amazon printed.
 The `envelope` is an ordinary field, so nothing special is needed to read it:
 
 ```bash
-amz product B084DWG2VQ -o json | jq -r '.envelope.via.price'
-amz product B084DWG2VQ -o json | jq -r '.envelope.missed[] | .field + ": " + .why'
+amz product B084DWG2VQ -o jsonl | jq -r '.envelope.via.price'
+amz product B084DWG2VQ -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
 amz search "usb c cable" -o jsonl | jq -r '.envelope.sources[].url'
 ```
 
