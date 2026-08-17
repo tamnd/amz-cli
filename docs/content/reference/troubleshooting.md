@@ -23,6 +23,33 @@ When it happens:
 amz's crawl loop already handles transient blocks for you: a blocked item goes
 back on the queue with a backoff instead of failing the whole run.
 
+## "disallowed by robots.txt" (exit 7)
+
+`amz` asked the marketplace's live `robots.txt` and it said no. The message names
+the rule, the pattern it matched, and the group it came from, so you can check it
+yourself:
+
+```console
+$ amz robots check /gp/offer-listing/B075F5X8BR
+disallowed  https://www.amazon.com/gp/offer-listing/B075F5X8BR  Disallow: /gp/offer-listing/  offers s18
+```
+
+This is the site's answer, not a bug in `amz`. `--no-robots` overrides it for one
+run, prints a banner, names every rule it breaks, and slows the pace floor to 5s.
+`amz crawl --no-robots` additionally requires `--yes`.
+
+Note that `/gp/offer-listing/` also redirects to the detail page, so overriding
+the rule buys you a redirect rather than an offer list. The buy box on `/dp/` is
+where that data lives now.
+
+## "robots.txt could not be fetched" (exit 8)
+
+`amz` could not read `robots.txt`, so it read nothing at all. A crawler that
+treats a failed fetch as permission is the worst kind of crawler there is, so
+there is no fallback copy and no "assume allowed" path.
+
+Retry, check the network, or check that `--marketplace` names a real host.
+
 ## "no results" (exit 3)
 
 Code 3 means the fetch succeeded but the surface was genuinely empty, for

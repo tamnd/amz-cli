@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -26,7 +27,16 @@ type Client struct {
 	noCache bool
 	refresh bool
 
-	base string // overrides the marketplace origin (tests / proxies)
+	robots    *robotsStore
+	noRobots  bool
+	notes     io.Writer
+	noteOnce  sync.Map // rule string -> struct{}, so a banner line prints once
+	base      string   // overrides the marketplace origin (tests / proxies)
+	noRobotsW sync.Once
+
+	// forceRobots makes the gate apply to a non-marketplace base URL. Set only
+	// by tests, via export_test.go.
+	forceRobots bool
 
 	mu   sync.Mutex
 	next time.Time
@@ -47,13 +57,24 @@ func NewClient(cfg Config) *Client {
 	tr.MaxIdleConnsPerHost = 1
 
 	return &Client{
-		hc:      &http.Client{Timeout: cfg.Timeout, Jar: jar, Transport: tr},
-		mkt:     mkt,
-		delay:   ClampDelay(cfg.Delay),
-		retries: cfg.Retries,
-		noCache: cfg.NoCache,
-		refresh: cfg.Refresh,
-		cache:   newCacheIf(cfg.CacheDir),
+		hc:       &http.Client{Timeout: cfg.Timeout, Jar: jar, Transport: tr},
+		mkt:      mkt,
+		delay:    ClampDelayWith(cfg.Delay, cfg.NoRobots),
+		retries:  cfg.Retries,
+		noCache:  cfg.NoCache,
+		refresh:  cfg.Refresh,
+		cache:    newCacheIf(cfg.CacheDir),
+		robots:   newRobotsStore(cfg.CacheDir),
+		noRobots: cfg.NoRobots,
+		notes:    io.Discard,
+	}
+}
+
+// SetNotes is where the client writes the lines that must not be silent: the
+// --no-robots banner and every rule it overrides. The CLI points this at stderr.
+func (c *Client) SetNotes(w io.Writer) {
+	if w != nil {
+		c.notes = w
 	}
 }
 
@@ -97,6 +118,13 @@ func (c *Client) throttle() {
 // Get fetches a URL and returns its body, using the cache when allowed and
 // detecting the bot wall. It retries transient 429/503/5xx with backoff.
 func (c *Client) Get(ctx context.Context, rawURL string, ttl time.Duration) ([]byte, error) {
+	// The rules check runs before the cache, not after it. A page cached
+	// yesterday under a rule that has since changed is still a page amz is no
+	// longer allowed to serve, and robots.txt is itself cached, so this is a map
+	// lookup and not a request.
+	if err := c.CheckRobots(ctx, rawURL); err != nil {
+		return nil, err
+	}
 	if c.cache != nil && !c.noCache && !c.refresh {
 		if b, ok := c.cache.Get(rawURL, ttl); ok {
 			return b, nil
@@ -110,6 +138,118 @@ func (c *Client) Get(ctx context.Context, rawURL string, ttl time.Duration) ([]b
 		_ = c.cache.Put(rawURL, body)
 	}
 	return body, nil
+}
+
+// Robots returns the parsed robots.txt for the host this client reads, fetching
+// it if the cached copy is older than RobotsTTL.
+func (c *Client) Robots(ctx context.Context) (*Robots, error) {
+	host, err := c.host()
+	if err != nil {
+		return nil, err
+	}
+	return c.robots.get(ctx, c.BaseURL(), host, c.fetch)
+}
+
+func (c *Client) host() (string, error) {
+	u, err := url.Parse(c.BaseURL())
+	if err != nil {
+		return "", err
+	}
+	return u.Host, nil
+}
+
+// CheckRobots asks the live robots.txt about a URL.
+//
+// It returns ErrRobotsUnavailable when the file cannot be had, and a
+// *DisallowedError naming the rule when the file refuses. Under --no-robots it
+// returns nil either way and prints what it is overriding.
+func (c *Client) CheckRobots(ctx context.Context, rawURL string) error {
+	if c.noRobots {
+		c.noRobotsBanner()
+	}
+
+	// robots.txt is fetched by the raw path, so asking about it would loop.
+	if strings.HasSuffix(pathAndQuery(rawURL), "/robots.txt") {
+		return nil
+	}
+	// A fixture server or proxy is not amazon.com and has no rules to break.
+	if c.base != "" && !c.forceRobots && !c.hostIsMarketplace() {
+		return nil
+	}
+
+	r, err := c.Robots(ctx)
+	if err != nil {
+		if c.noRobots {
+			c.note("amz: robots.txt is unreadable. The override is on, so amz is proceeding blind.")
+			return nil
+		}
+		return err
+	}
+
+	allowed, rule := r.Test(rawURL)
+	c.compareToExpectation(rawURL, allowed)
+	if allowed {
+		return nil
+	}
+	if c.noRobots {
+		c.noteOnceFor(rule.String(), fmt.Sprintf("amz: overriding %q for %s", rule.String(), rawURL))
+		return nil
+	}
+	return &DisallowedError{URL: rawURL, Agent: r.GroupName(), Rule: rule}
+}
+
+func (c *Client) hostIsMarketplace() bool {
+	h, err := c.host()
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(h, "amazon.com") || strings.Contains(h, "amazon.")
+}
+
+// compareToExpectation prints a note when the live file disagrees with what the
+// Ops registry was told at measurement time. The live file wins; the note exists
+// so the stale row gets fixed rather than trusted.
+func (c *Client) compareToExpectation(rawURL string, allowed bool) {
+	op := OpFor(rawURL)
+	if op == nil || op.Robots == RobotsUnknown || op.Robots == RobotsNA {
+		return
+	}
+	want := op.Robots == RobotsAllowed
+	if want == allowed {
+		return
+	}
+	c.noteOnceFor("expect:"+op.Name, fmt.Sprintf(
+		"amz: robots.txt now says %q for surface %s (%s), the registry says %q as of %s; following the live file",
+		allowStr(allowed), op.Name, op.ID, op.Robots, op.Since))
+}
+
+func allowStr(b bool) string {
+	if b {
+		return "allowed"
+	}
+	return "disallowed"
+}
+
+func (c *Client) note(s string) { _, _ = fmt.Fprintln(c.notes, s) }
+
+func (c *Client) noteOnceFor(key, s string) {
+	if _, loaded := c.noteOnce.LoadOrStore(key, struct{}{}); loaded {
+		return
+	}
+	c.note(s)
+}
+
+// noRobotsBanner is four lines, printed once per run, before the first request.
+//
+// The flag is the user's call and amz honours it. It does not get to be quiet
+// about it.
+func (c *Client) noRobotsBanner() {
+	c.noRobotsW.Do(func() {
+		c.note("amz: --no-robots is set. amazon.com's robots.txt will be read, and then ignored.")
+		c.note("amz: this is your decision, recorded here rather than hidden. It applies to this run only.")
+		c.note("amz: the pace floor rises to " + MinDelayNoRobots.String() + " and every rule amz breaks is printed as it breaks it.")
+		c.note("amz: stop now if that was not deliberate.")
+	})
 }
 
 func (c *Client) fetch(ctx context.Context, rawURL string) ([]byte, error) {

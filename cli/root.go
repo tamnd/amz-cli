@@ -33,6 +33,15 @@ const (
 	CodeNoData  = 3
 	CodePartial = 4
 	CodeBlocked = 5
+
+	// CodeDisallowed means robots.txt refused the read. It is not an error in
+	// the tool; it is the site's answer, and --no-robots is the only way past it.
+	CodeDisallowed = 7
+
+	// CodeNoRobots means robots.txt could not be fetched. Nothing was read,
+	// because a crawler that treats a failed fetch as permission is the worst
+	// kind of crawler there is.
+	CodeNoRobots = 8
 )
 
 // ExitError carries a specific process exit code out of a command.
@@ -62,6 +71,10 @@ func codeFor(err error) int {
 		return ee.Code
 	case errors.Is(err, amz.ErrBlocked):
 		return CodeBlocked
+	case errors.Is(err, amz.ErrDisallowed):
+		return CodeDisallowed
+	case errors.Is(err, amz.ErrRobotsUnavailable):
+		return CodeNoRobots
 	case errors.Is(err, amz.ErrNotFound):
 		return CodeNoData
 	default:
@@ -91,6 +104,8 @@ type App struct {
 	NoHeader    bool
 	Template    string
 	ConfigPath  string
+	NoRobots    bool
+	Yes         bool
 
 	// Out is where rendered records go (cobra's stdout, or a file for -O).
 	Out io.Writer
@@ -100,12 +115,13 @@ type App struct {
 func (a *App) Config() amz.Config {
 	cfg := amz.DefaultConfig()
 	cfg.Marketplace = a.Marketplace
-	cfg.Delay = amz.ClampDelay(a.Rate)
+	cfg.Delay = amz.ClampDelayWith(a.Rate, a.NoRobots)
 	cfg.Retries = a.Retries
 	cfg.Timeout = a.Timeout
 	cfg.UseAPI = a.UseAPI
 	cfg.NoCache = a.NoCache
 	cfg.Refresh = a.Refresh
+	cfg.NoRobots = a.NoRobots
 	if a.DataDir != "" {
 		cfg.DataDir = a.DataDir
 		cfg.CacheDir = a.DataDir + "/cache"
@@ -120,6 +136,7 @@ func (a *App) Client() (*amz.Client, error) {
 		return nil, exit(CodeUsage, fmt.Errorf("unknown marketplace %q (try: %s)", a.Marketplace, marketplaceSlugs()))
 	}
 	c := amz.NewClient(a.Config())
+	c.SetNotes(os.Stderr)
 	if base := os.Getenv("AMZ_BASE_URL"); base != "" {
 		c.SetBaseURL(base)
 	}
@@ -227,6 +244,12 @@ func Root() *cobra.Command {
 	pf.StringVar(&app.Template, "template", "", "Go text/template applied per row")
 	pf.StringVar(&app.ConfigPath, "config", "", "config file (default: XDG config)")
 
+	// --no-robots is a flag and only a flag. It is deliberately absent from the
+	// config file, from the environment and from the MCP server, and it lasts for
+	// one run. See TestNoRobotsNotInConfig and TestNoRobotsNotInEnv.
+	pf.BoolVar(&app.NoRobots, "no-robots", false, "ignore robots.txt for this run (prints every rule it breaks)")
+	pf.BoolVar(&app.Yes, "yes", false, "confirm a destructive or impolite action without prompting")
+
 	root.AddCommand(
 		productCmd(app),
 		searchCmd(app),
@@ -253,6 +276,8 @@ func Root() *cobra.Command {
 		cacheCmd(app),
 		infoCmd(app),
 		asinCmd(app),
+		robotsCmd(app),
+		surfacesCmd(app),
 	)
 	return root
 }
