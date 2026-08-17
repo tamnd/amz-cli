@@ -302,4 +302,3 @@ func doctorRow(tw *tabwriter.Writer, name, detail string, state checkState, note
 		_, _ = fmt.Fprintf(tw, "  \t%s\t\n", note)
 	}
 }
-

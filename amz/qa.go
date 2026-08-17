@@ -86,4 +86,3 @@ func (c *Client) readQA(asin, pageURL string, root *goquery.Selection) []QA {
 	})
 	return out
 }
-

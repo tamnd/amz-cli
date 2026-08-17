@@ -114,12 +114,12 @@ type App struct {
 	// Verbose counts the -v flags. One is the usual "tell me more" and two
 	// asks the human product card to say where every field came from, which
 	// is the provenance the envelope carries and nothing else prints.
-	Verbose     int
-	Color       string
-	NoCache     bool
-	Refresh     bool
-	DryRun      bool
-	Raw         bool
+	Verbose int
+	Color   string
+	NoCache bool
+	Refresh bool
+	DryRun  bool
+	Raw     bool
 	// Flat emits the v0.2.1 product record instead of the nested one.
 	//
 	// Deprecated: it goes in v0.4.0. It is here so a script that reads .price
