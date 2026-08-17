@@ -16,7 +16,21 @@ const (
 	// by env or by config, because a pace flag that can be set to zero is not a
 	// pace flag. --rate can raise it and nothing can lower it.
 	MinDelay = 1 * time.Second
+
+	// MinDelayNoRobots is the floor once --no-robots is set. Reading what a site
+	// asked you not to read is a thing to do slowly, or not at all.
+	MinDelayNoRobots = 5 * time.Second
 )
+
+// ClampDelayWith applies the floor that fits the run. Under --no-robots the
+// floor rises, and --rate can still only raise it further.
+func ClampDelayWith(d time.Duration, noRobots bool) time.Duration {
+	d = ClampDelay(d)
+	if noRobots && d < MinDelayNoRobots {
+		return MinDelayNoRobots
+	}
+	return d
+}
 
 // ClampDelay applies the floor. A zero or negative delay means "unset", which
 // resolves to the default rather than to no delay at all.
@@ -42,6 +56,12 @@ type Config struct {
 	DBPath      string
 	NoCache     bool
 	Refresh     bool
+
+	// NoRobots is the --no-robots override. It is set from the flag and from
+	// nowhere else: not from config, not from the environment, not from the MCP
+	// server. A stop signal you can turn off in a file you forgot about is not a
+	// stop signal.
+	NoRobots bool
 
 	// PA-API credentials (opt-in path).
 	PAAPIAccessKey  string

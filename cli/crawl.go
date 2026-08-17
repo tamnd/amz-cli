@@ -122,6 +122,12 @@ func crawlCmd(app *App) *cobra.Command {
 		Use:   "crawl",
 		Short: "Drain the crawl queue into the local store",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// A single disallowed read is one request. A crawl under --no-robots
+			// is thousands, unattended, and the flag is easy to leave in a shell
+			// history. --yes is the second hand on the switch.
+			if app.NoRobots && !app.Yes {
+				return exit(CodeUsage, errors.New("crawl with --no-robots needs --yes: this ignores robots.txt for every page in the queue"))
+			}
 			s, err := openStore(app)
 			if err != nil {
 				return err

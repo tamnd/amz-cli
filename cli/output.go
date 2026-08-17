@@ -198,7 +198,7 @@ func (o *Output) Emit(r Row) error {
 			o.wroteHead = true
 		}
 		return o.csvw.Write(vals)
-	default: // table — buffer to align columns at Close
+	default: // table: buffer to align columns at Close
 		cols, vals := o.project(r)
 		if o.tableCols == nil {
 			o.tableCols = cols

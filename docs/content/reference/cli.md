@@ -21,7 +21,7 @@ These persistent flags work on every command:
 | `-O`, `--out` | | write output to a file |
 | `--no-header` | | omit the table/CSV header |
 | `--template` | | Go text/template per row |
-| `--rate` | `3s` | minimum delay between requests |
+| `--rate` | `3s` | minimum delay between requests (floor 1s, 5s under `--no-robots`) |
 | `--retries` | `3` | retry attempts on 429/503 |
 | `--timeout` | `30s` | per-request timeout |
 | `--api` | | use the official PA-API path |
@@ -31,6 +31,8 @@ These persistent flags work on every command:
 | `--raw` | | emit the underlying HTML/JSON |
 | `--data-dir` | | root cache/data dir |
 | `--config` | | config file |
+| `--no-robots` | | ignore robots.txt for this run, and print every rule it breaks |
+| `--yes` | | confirm an impolite action without prompting (required by `crawl --no-robots`) |
 | `-q`, `--quiet` / `-v`, `--verbose` | | log level |
 
 ## Product surfaces

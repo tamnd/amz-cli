@@ -302,3 +302,158 @@ func TestGzipIsDecoded(t *testing.T) {
 }
 
 func gzipWriter(w io.Writer) *gzip.Writer { return gzip.NewWriter(w) }
+
+// TestEveryFetchGoesThroughOps is the structural guarantee behind the robots
+// gate: there is no code path that builds a URL and fetches it without a rules
+// check.
+//
+// It works by walking the AST for http.NewRequest and (*http.Client).Do outside
+// client.go. Every fetcher in the repository goes through Client.Get, and
+// Client.Get calls CheckRobots first, so "no other request builder exists" is
+// the same statement as "every request is checked".
+//
+// papi.go is exempt for the reason given on TestOneHeaderCallSite: a different
+// protocol on a different host, which never touches amazon.com's HTML surfaces.
+func TestEveryFetchGoesThroughOps(t *testing.T) {
+	fset := token.NewFileSet()
+	for _, f := range repoFiles(t) {
+		base := filepath.Base(f)
+		if base == "client.go" || base == "papi.go" || strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, f, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			pkg, isIdent := sel.X.(*ast.Ident)
+			switch {
+			case isIdent && pkg.Name == "http" && strings.HasPrefix(sel.Sel.Name, "NewRequest"):
+			case isIdent && pkg.Name == "http" && (sel.Sel.Name == "Get" || sel.Sel.Name == "Post"):
+			default:
+				return true
+			}
+			t.Errorf("%s:%d builds a request outside client.go, so it skips the robots gate",
+				f, fset.Position(call.Pos()).Line)
+			return true
+		})
+	}
+}
+
+// TestRobotsIsNeverHardcoded asserts there is no compiled-in copy of any rule.
+//
+// A fallback copy is worse than no answer: it is a copy that says yes long after
+// the site started saying no, and nobody notices because nothing fails.
+//
+// The needle is a string literal carrying both a group header and a rule, which
+// is what a baked-in robots.txt looks like and what a doc comment or a formatting
+// helper does not.
+func TestRobotsIsNeverHardcoded(t *testing.T) {
+	fset := token.NewFileSet()
+	for _, f := range repoFiles(t) {
+		if strings.HasSuffix(f, "_test.go") {
+			continue // the tests carry fixtures on purpose, and say so
+		}
+		b := readFile(t, f)
+		for _, bad := range []string{"defaultRobots", "fallbackRobots", "builtinRobots", "embeddedRobots"} {
+			if strings.Contains(b, bad) {
+				t.Errorf("%s declares %s: robots.txt is fetched, never compiled in", f, bad)
+			}
+		}
+		file, err := parser.ParseFile(fset, f, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			v := strings.ToLower(lit.Value)
+			if strings.Contains(v, "user-agent:") && strings.Contains(v, "disallow:") {
+				t.Errorf("%s:%d embeds a robots.txt as a literal", f, fset.Position(lit.Pos()).Line)
+			}
+			return true
+		})
+	}
+}
+
+// TestNoRobotsNotInConfig asserts the override cannot be turned on by a file.
+// A stop signal you can disable in a config you forgot about is not a stop
+// signal.
+func TestNoRobotsNotInConfig(t *testing.T) {
+	for _, f := range repoFiles(t) {
+		if strings.HasSuffix(f, "policy_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, bad := range []string{`"no_robots"`, `"norobots"`, `"no-robots"` + ": "} {
+			if strings.Contains(string(b), bad) {
+				t.Errorf("%s reads %s as a config key: --no-robots is a flag and only a flag", f, bad)
+			}
+		}
+	}
+	// The starter config must not mention it either.
+	if strings.Contains(readFile(t, "cli/config.go"), "no_robots") {
+		t.Error("the starter config offers a no_robots key")
+	}
+}
+
+// TestNoRobotsNotInEnv asserts the override cannot be turned on by the
+// environment, which is how it would end up in a CI job and stay there.
+func TestNoRobotsNotInEnv(t *testing.T) {
+	for _, f := range repoFiles(t) {
+		if strings.HasSuffix(f, "policy_test.go") {
+			continue
+		}
+		b := readFile(t, f)
+		for _, bad := range []string{"AMZ_NO_ROBOTS", "AMZ_ROBOTS", "NO_ROBOTS"} {
+			if strings.Contains(b, bad) {
+				t.Errorf("%s reads %s from the environment", f, bad)
+			}
+		}
+	}
+	t.Setenv("AMZ_NO_ROBOTS", "1")
+	if NewClient(DefaultConfig()).noRobots {
+		t.Error("an environment variable turned the override on")
+	}
+}
+
+// TestPaceFloorUnderNoRobots pins the second floor. --no-robots does not make
+// amz faster; it makes it slower and louder.
+func TestPaceFloorUnderNoRobots(t *testing.T) {
+	if MinDelayNoRobots <= MinDelay {
+		t.Fatalf("the --no-robots floor (%s) must be above the normal one (%s)", MinDelayNoRobots, MinDelay)
+	}
+	c := NewClient(Config{Delay: time.Millisecond, Timeout: time.Second, NoRobots: true})
+	if c.Delay() < MinDelayNoRobots {
+		t.Errorf("client delay %s is below the --no-robots floor %s", c.Delay(), MinDelayNoRobots)
+	}
+}
+
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	if !filepath.IsAbs(path) {
+		abs, err := filepath.Abs(filepath.Join("..", path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		path = abs
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}

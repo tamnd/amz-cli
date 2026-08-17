@@ -6,21 +6,18 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/tamnd/amz-cli)](https://goreportcard.com/report/github.com/tamnd/amz-cli)
 [![License](https://img.shields.io/github/license/tamnd/amz-cli)](./LICENSE)
 
-A command line for Amazon. `amz` reads every public Amazon surface — products,
-search, reviews, Q&A, offers, charts, categories, brands, sellers, authors, and
-deals — and turns each one into clean, pipeable records. One pure-Go binary, no
-API key required.
+A command line for Amazon.
+`amz` reads every public Amazon surface (products, search, reviews, Q&A, offers, charts, categories, brands, sellers, authors, deals) and turns each one into clean, pipeable records.
+One pure-Go binary, no API key required.
 
 [Install](#install) • [Commands](#commands) • [Usage](#usage) • [Access tiers](#access-tiers)
 
 ![amz reading Amazon bestsellers as a table and piping through jq](docs/static/demo.gif)
 
-It reads the public pages on `amazon.com` over plain HTTPS, extracts the JSON-LD
-Amazon marks up for machines, and falls back to precise HTML selectors so each
-record is rich with no missing fields where the page had them. Every request is
-paced, retried on transient failures, and cached on disk. When Amazon serves a
-bot-check page instead of content, `amz` detects it and exits with a distinct
-code rather than handing you garbage.
+It reads the public pages on `amazon.com` over plain HTTPS and normalizes each one into a record with named fields.
+Every request is paced, retried on transient failures, and cached on disk.
+`robots.txt` is fetched from the marketplace and obeyed before every request.
+When Amazon serves a bot-check page instead of content, `amz` detects it and exits with a distinct code rather than handing you garbage.
 
 `amz` is an independent tool. It is not affiliated with or endorsed by Amazon.
 
@@ -65,6 +62,9 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz db query <sql>` | query the optional local DuckDB store |
 | `amz asin <url>...` | extract the ASIN from any Amazon URL |
 | `amz open <ASIN\|query>` | open the relevant Amazon page in the browser |
+| `amz robots` | the marketplace's live robots.txt and the group `amz` reads under |
+| `amz robots check <url>...` | ask robots.txt about a URL and print the rule that decided it |
+| `amz surfaces` | every Amazon surface `amz` knows, with what was measured about it |
 | `amz info` | show access tier, marketplace, and config summary |
 | `amz config` | view and manage configuration and PA-API credentials |
 | `amz cache path\|info\|clear` | inspect or clear the on-disk page cache |
@@ -150,6 +150,32 @@ identity failed 4 of 4, this one was served 4 of 4.
 that loaded it. Nothing `amz` reads needs a login, and the surfaces that do are
 reported rather than reached.
 
+## robots.txt
+
+`amz` fetches `robots.txt` from the marketplace it is reading, caches it for 24 hours, and asks it before every request.
+There is no compiled-in copy, because a stale copy that says yes is worse than no answer.
+If the file cannot be fetched, `amz` reads nothing and exits 8.
+
+```console
+$ amz robots
+host:      www.amazon.com
+fetched:   2026-08-17 15:20:07 (cached 24h0m0s)
+agent:     amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)
+group:     "*" of 100
+rules:     118 disallow, 17 allow
+
+$ amz robots check /dp/B075F5X8BR /gp/offer-listing/B075F5X8BR '/b?node=7454917011'
+allowed     .../dp/B075F5X8BR                  (no rule matches)             product s1
+disallowed  .../gp/offer-listing/B075F5X8BR    Disallow: /gp/offer-listing/  offers s18
+disallowed  .../b?node=7454917011              Disallow: /b?*node=7454917011 category s4
+```
+
+That last row is why the matcher runs against the query string and not the path.
+Five browse nodes are refused by a pattern that only ever matches inside a query, and a path-only matcher gets all five wrong.
+
+`--no-robots` is the override, and it is a flag and only a flag: not a config key, not an environment variable, and it lasts for one run.
+It prints a banner, names every rule it breaks as it breaks it, raises the pace floor from 1s to 5s, and needs `--yes` before it will do this to a whole crawl queue.
+
 ## Access tiers
 
 `amz` reads two tiers, selected per run:
@@ -169,6 +195,8 @@ the same output schema as the other tiers, so scripts work unchanged.
 3  no results
 4  partial results
 5  blocked (bot-check or CAPTCHA; try --rate, --marketplace, or --api)
+7  disallowed by robots.txt (the rule is named in the message)
+8  robots.txt could not be fetched, so nothing was read
 ```
 
 ## Development
