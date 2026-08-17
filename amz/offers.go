@@ -23,7 +23,7 @@ func (c *Client) OffersURL(asin string) string {
 var sellerIDRe = regexp.MustCompile(`seller=([A-Z0-9]+)`)
 
 // FetchOffers streams buying options for an ASIN.
-func (c *Client) FetchOffers(ctx context.Context, asin string, q OfferQuery, emit func(Offer) error) error {
+func (c *Client) FetchOffers(ctx context.Context, asin string, q OfferQuery, emit func(OfferListing) error) error {
 	u := c.OffersURL(asin)
 	body, err := c.Get(ctx, u, 6*time.Hour)
 	if err != nil {
@@ -35,7 +35,7 @@ func (c *Client) FetchOffers(ctx context.Context, asin string, q OfferQuery, emi
 	}
 	var perr error
 	doc.Find("#aod-offer-list #aod-offer, #olpOfferList .olpOffer, .aod-offer").EachWithBreak(func(i int, s *goquery.Selection) bool {
-		o := Offer{ASIN: asin, Currency: c.mkt.Currency, URL: u, FetchedAt: time.Now().UTC()}
+		o := OfferListing{ASIN: asin, Currency: c.mkt.Currency, URL: u, FetchedAt: time.Now().UTC()}
 		o.Price, _ = ParsePrice(s.Find(".a-price .a-offscreen, .olpOfferPrice").First().Text())
 		o.Shipping = collapseSpace(s.Find("#aod-bottlecap-deliveryMessage, .olpShippingInfo").First().Text())
 		o.Condition = collapseSpace(s.Find("#aod-offer-heading, .olpCondition").First().Text())

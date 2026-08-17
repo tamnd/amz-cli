@@ -24,19 +24,29 @@ func (c *Cache) path(rawURL string) string {
 
 // Get returns the cached body if present and fresher than ttl.
 func (c *Cache) Get(rawURL string, ttl time.Duration) ([]byte, bool) {
+	b, _, ok := c.GetAt(rawURL, ttl)
+	return b, ok
+}
+
+// GetAt is Get with the time the body was written.
+//
+// A record built from a cached page was not retrieved when the command ran, and
+// a source that stamped it with the moment of the read would be dating a
+// yesterday's price to today. The write time is what the entry means.
+func (c *Cache) GetAt(rawURL string, ttl time.Duration) ([]byte, time.Time, bool) {
 	p := c.path(rawURL)
 	fi, err := os.Stat(p)
 	if err != nil {
-		return nil, false
+		return nil, time.Time{}, false
 	}
 	if ttl > 0 && time.Since(fi.ModTime()) > ttl {
-		return nil, false
+		return nil, time.Time{}, false
 	}
 	b, err := os.ReadFile(p)
 	if err != nil {
-		return nil, false
+		return nil, time.Time{}, false
 	}
-	return b, true
+	return b, fi.ModTime().UTC(), true
 }
 
 // Put writes the body to the cache.

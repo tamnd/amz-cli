@@ -8,10 +8,10 @@ import (
 )
 
 func categoryCmd(app *App) *cobra.Command {
-	var children, top bool
+	var related, children, top bool
 	cmd := &cobra.Command{
 		Use:   "category <node_id|url>",
-		Short: "Fetch a browse node: name, breadcrumb, children, top ASINs",
+		Short: "Fetch a browse node: name, related nodes, shelves, top ASINs",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.Client()
@@ -32,9 +32,9 @@ func categoryCmd(app *App) *cobra.Command {
 				return exit(codeFor(ferr), ferr)
 			}
 			switch {
-			case children:
-				for _, n := range cat.ChildNodeIDs {
-					_ = out.Emit(stringRow("child_node_id", n))
+			case related || children:
+				for _, n := range cat.Related {
+					_ = out.Emit(refRow(n))
 				}
 			case top:
 				for _, a := range cat.TopASINs {
@@ -46,7 +46,12 @@ func categoryCmd(app *App) *cobra.Command {
 			return emitErr(out, nil)
 		},
 	}
-	cmd.Flags().BoolVar(&children, "children", false, "list child node ids instead of the record")
+	cmd.Flags().BoolVar(&related, "related", false, "list the browse nodes this page links instead of the record")
+	// --children is the old name and does the same thing. A browse page links its
+	// children and its siblings with the same markup and never says which is
+	// which, so the flag was promising a tree edge it could not tell apart.
+	cmd.Flags().BoolVar(&children, "children", false, "list the browse nodes this page links instead of the record")
+	_ = cmd.Flags().MarkDeprecated("children", "use --related, since a browse page does not distinguish children from siblings")
 	cmd.Flags().BoolVar(&top, "top", false, "list top ASINs instead of the record")
 	return cmd
 }

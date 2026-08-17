@@ -19,11 +19,26 @@ your `--limit`.
 
 ### The review record
 
-Each `Review` carries `review_id`, `reviewer_name`, `reviewer_id`, `rating`,
-`title`, `text`, `date`, `country`, `verified_purchase`, `helpful_votes`,
-`images`, and `variant_attrs` (the format strip, parsed into key/value pairs
-such as `colour` and `size`). When the page has no stable id, amz derives a
-stable `review_id` so the same review hashes the same across runs.
+Each `Review` carries `review_id`, `author`, `reviewer_name`, `rating`, `title`,
+`text`, `date`, `country`, `verified_purchase`, `helpful_votes`, `images`, and
+`variant_attrs` (the format strip, parsed into key and value pairs such as
+`colour` and `size`). When the page has no stable id, amz derives a stable
+`review_id` so the same review hashes the same across runs.
+
+`author` is a reference and it is almost always unresolved. The profile link goes
+to `/gp/profile/`, which robots.txt disallows, so amz has a display name and no
+identifier to file it under, and the record says that rather than dropping the
+name or inventing an id.
+
+`date` is the line Amazon wrote plus the parse of it when one succeeded. A date
+amz could not read keeps its `raw` and has no `parsed`, because a failed parse
+that became a zero time would be January of year 1 and everything downstream
+would treat it as a real date.
+
+Amazon requires a sign-in for the review corpus, so a product record carries the
+rating, the count and the star histogram and no reviews. It says so in
+`envelope.missed`, which is what distinguishes a product nobody has reviewed from
+one whose reviews amz was not allowed to read.
 
 ### Filters
 

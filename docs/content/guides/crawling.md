@@ -17,7 +17,7 @@ binary, never through cgo. It is optional: install `duckdb` and the `db` and
 ```bash
 amz db path                # where the database lives
 amz db stats               # row counts per table
-amz db query "select asin, data->>'price' price from products order by price desc limit 10"
+amz db query "select asin, (data->'offer'->'price'->>'value')::double price from products order by price desc limit 10"
 amz db vacuum              # compact
 amz db reset               # delete the file
 ```
@@ -25,8 +25,10 @@ amz db reset               # delete the file
 Each surface has its own table (products, reviews, qa, offers, bestsellers,
 categories, brands, sellers, authors) plus the queue. Every table keeps a few
 key columns typed for fast filtering and the full record in a `data` JSON
-column, so any field is reachable with DuckDB's JSON arrow: `data->>'brand'`,
-`data->>'rating'`, and so on.
+column, so any field is reachable with DuckDB's JSON arrow. The record is nested,
+so the arrows nest with it: `data->'brand'->>'name'`, `data->>'rating'`,
+`data->'offer'->'price'->>'value'`, and the provenance is queryable the same way
+with `data->'envelope'->'via'->>'price'`.
 
 ## Seeding the queue
 
@@ -78,7 +80,7 @@ amz bestsellers electronics -n 100 -o url \
   | sed 's#.*/dp/##; s#/.*##' \
   | amz seed --file -
 amz crawl
-amz db query "select data->>'brand' brand, count(*) n,
-                     avg((data->>'price')::double) p
+amz db query "select data->'brand'->>'name' brand, count(*) n,
+                     avg((data->'offer'->'price'->>'value')::double) p
               from products group by brand order by n desc limit 20"
 ```

@@ -32,7 +32,7 @@ func (c *Client) FetchCategory(ctx context.Context, nodeOrURL string) (Category,
 	} else {
 		url = c.CategoryURL(node)
 	}
-	body, err := c.Get(ctx, url, 24*time.Hour)
+	body, src, err := c.GetSource(ctx, url, 24*time.Hour)
 	if err != nil {
 		return Category{}, err
 	}
@@ -40,6 +40,7 @@ func (c *Client) FetchCategory(ctx context.Context, nodeOrURL string) (Category,
 	if err != nil {
 		return Category{}, err
 	}
+	c.record(ctx, &bp.Envelope, src)
 	cat := Category{
 		NodeID:        node,
 		CanonicalNode: bp.CanonicalNode,
@@ -47,13 +48,21 @@ func (c *Client) FetchCategory(ctx context.Context, nodeOrURL string) (Category,
 		Name:          bp.Name,
 		URL:           url,
 		CanonicalURL:  bp.CanonicalURL,
-		ChildNodeIDs:  bp.ChildNodeIDs,
+		Related:       bp.Related,
 		ItemCount:     bp.Items,
 		FetchedAt:     time.Now().UTC(),
 		Envelope:      bp.Envelope,
 	}
-	if len(cat.ChildNodeIDs) > 50 {
-		cat.ChildNodeIDs = cat.ChildNodeIDs[:50]
+	if len(cat.Related) > 50 {
+		// The cap is a report of what was kept, not a silent truncation. Without
+		// the entry a consumer counting related nodes reads fifty as the answer.
+		cat.Envelope.Missed = append(cat.Envelope.Missed, Miss{
+			Field: "related",
+			Why:   "the page links more browse nodes than one record carries",
+			Have:  50,
+			Total: int64(len(cat.Related)),
+		})
+		cat.Related = cat.Related[:50]
 	}
 	for _, sh := range bp.Shelves {
 		s := CategoryShelf{Widget: sh.Widget, Title: sh.Title}

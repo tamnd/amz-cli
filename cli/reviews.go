@@ -105,7 +105,7 @@ func offersCmd(app *App) *cobra.Command {
 			}
 			defer func() { _ = out.Close() }()
 			n := 0
-			ferr := c.FetchOffers(cmd.Context(), asin, q, func(o amz.Offer) error {
+			ferr := c.FetchOffers(cmd.Context(), asin, q, func(o amz.OfferListing) error {
 				if app.Limit > 0 && n >= app.Limit {
 					return nil
 				}

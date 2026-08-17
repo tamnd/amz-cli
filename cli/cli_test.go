@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -79,6 +80,21 @@ func run(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
+// runSplit keeps stdout and stderr apart, which run deliberately does not.
+// Most assertions here do not care, but a deprecation notice goes to stderr and
+// a caller piping stdout into jq must not see it, so that separation has to be
+// testable.
+func runSplit(t *testing.T, args ...string) (string, string, error) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	root := Root()
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(append([]string{"--rate", "0"}, args...))
+	err := root.Execute()
+	return out.String(), errOut.String(), err
+}
+
 func TestCmdProductJSON(t *testing.T) {
 	fixtureServer(t)
 	out, err := run(t, "product", "B084DWG2VQ", "-o", "json")
@@ -92,8 +108,60 @@ func TestCmdProductJSON(t *testing.T) {
 	if len(rows) != 1 || rows[0]["asin"] != "B084DWG2VQ" {
 		t.Fatalf("rows = %v", rows)
 	}
-	if rows[0]["price"].(float64) != 49.99 {
-		t.Errorf("price = %v", rows[0]["price"])
+	// The price now lives on the buy box and serialises as an object, not as a
+	// bare number. That is the breaking change --flat exists to soften, so the
+	// same assertion is made twice: once against the nested record and once
+	// against the shape a v0.2.1 script is reading.
+	offer, ok := rows[0]["offer"].(map[string]any)
+	if !ok {
+		t.Fatalf("no offer on the record: %v", rows[0])
+	}
+	price, ok := offer["price"].(map[string]any)
+	if !ok {
+		t.Fatalf("no price on the buy box: %v", offer)
+	}
+	if price["value"].(float64) != 49.99 || price["currency"] != "USD" {
+		t.Errorf("price = %v", price)
+	}
+}
+
+func TestCmdProductFlatKeepsTheOldShape(t *testing.T) {
+	fixtureServer(t)
+	out, _, err := runSplit(t, "product", "B084DWG2VQ", "-o", "json", "--flat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(out), &rows); err != nil {
+		t.Fatalf("not json: %v\n%s", err, out)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %v", rows)
+	}
+	if rows[0]["price"].(float64) != 49.99 || rows[0]["currency"] != "USD" {
+		t.Errorf("price = %v %v", rows[0]["price"], rows[0]["currency"])
+	}
+	if rows[0]["brand"] != "Amazon" || rows[0]["seller_name"] != "Amazon.com" {
+		t.Errorf("flat record = %v", rows[0])
+	}
+}
+
+// TestFlatIsAnnouncedAsDeprecated pins the notice. The flag buys scripts one
+// version to move and that promise is only kept if the deadline is printed
+// where somebody using it will see it.
+func TestFlatIsAnnouncedAsDeprecated(t *testing.T) {
+	fixtureServer(t)
+	out, errOut, err := runSplit(t, "product", "B084DWG2VQ", "-o", "json", "--flat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut, "v0.4.0") {
+		t.Errorf("--flat did not say when it goes away:\n%s", errOut)
+	}
+	// And the notice goes nowhere near the records, because the whole point of
+	// the flag is that a v0.2.1 pipeline keeps working unchanged.
+	if strings.Contains(out, "deprecated") {
+		t.Errorf("the notice leaked into stdout:\n%s", out)
 	}
 }
 
@@ -153,6 +221,24 @@ func TestCmdTemplate(t *testing.T) {
 	}
 	if strings.TrimSpace(out) != "B084DWG2VQ=49.99" {
 		t.Errorf("template output = %q", out)
+	}
+}
+
+// A price is an object in the record, and a template is a line of text. A card
+// rendered through {{.price}} has to print the price and not Go's rendering of
+// the map the price decodes to.
+func TestCmdTemplatePrintsPricesAndNotMaps(t *testing.T) {
+	fixtureServer(t)
+	out, err := run(t, "search", "usb c cable", "--template", "{{.asin}} {{.price}}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "map[") {
+		t.Errorf("a structured field reached the template as a map:\n%s", out)
+	}
+	line := strings.TrimSpace(strings.Split(strings.TrimSpace(out), "\n")[0])
+	if !regexp.MustCompile(`^B[A-Z0-9]{9} \d+\.\d{2}$`).MatchString(line) {
+		t.Errorf("template line = %q, want an asin and a price", line)
 	}
 }
 

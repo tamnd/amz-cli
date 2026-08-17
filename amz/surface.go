@@ -232,7 +232,8 @@ var ops = []*Op{
 		ID: "s12", Name: "author", Path: "/stores/author/<id>", Robots: RobotsAllowed, Since: "2026-08-17",
 		Fields: []string{"author", "books"},
 		Why:    "stores",
-		match:  pathPrefix("/stores/author/"),
+		Note:   "/author/<name> is the older spelling and still resolves. amz builds it whenever it is given a name rather than a store id, so the registry has to know both or those reads are unclassified.",
+		match:  pathPrefix("/stores/author/", "/author/"),
 	},
 	{
 		ID: "s13", Name: "deals", Path: "/deals", Robots: RobotsAllowed, Since: "2026-08-17",

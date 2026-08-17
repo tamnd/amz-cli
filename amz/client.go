@@ -122,26 +122,93 @@ func (c *Client) throttle() {
 // Get fetches a URL and returns its body, using the cache when allowed and
 // detecting the bot wall. It retries transient 429/503/5xx with backoff.
 func (c *Client) Get(ctx context.Context, rawURL string, ttl time.Duration) ([]byte, error) {
+	body, _, err := c.GetSource(ctx, rawURL, ttl)
+	return body, err
+}
+
+// GetSource is Get with a record of the response it returned.
+//
+// Every fetcher needs the same four facts about the page it just read: which
+// surface it was, how many bytes came back, whether it came off disk, and when
+// it was actually retrieved. Get computes all four and throws them away, which
+// is why the envelope's source list could only ever be filled in by the fetchers
+// that reconstructed them by hand. Returning them makes a record's provenance a
+// property of the fetch rather than of what each fetcher remembered to do.
+func (c *Client) GetSource(ctx context.Context, rawURL string, ttl time.Duration) ([]byte, Source, error) {
+	src := Source{URL: rawURL, Surface: surfaceOf(rawURL)}
+
 	// The rules check runs before the cache, not after it. A page cached
 	// yesterday under a rule that has since changed is still a page amz is no
 	// longer allowed to serve, and robots.txt is itself cached, so this is a map
 	// lookup and not a request.
 	if err := c.CheckRobots(ctx, rawURL); err != nil {
-		return nil, err
+		return nil, src, err
 	}
 	if c.cache != nil && !c.noCache && !c.refresh {
-		if b, ok := c.cache.Get(rawURL, ttl); ok {
-			return b, nil
+		if b, at, ok := c.cache.GetAt(rawURL, ttl); ok {
+			src.Bytes, src.Cached, src.RetrievedAt = len(b), true, at
+			return b, src, nil
 		}
 	}
 	body, err := c.fetch(ctx, rawURL)
 	if err != nil {
-		return nil, err
+		return nil, src, err
 	}
 	if c.cache != nil && !c.noCache {
 		_ = c.cache.Put(rawURL, body)
 	}
-	return body, nil
+	// fetch hands back a body only when the final response succeeded, so the
+	// status here is not a guess: every other outcome left through the error.
+	src.Bytes, src.Status, src.RetrievedAt = len(body), http.StatusOK, time.Now().UTC()
+	return body, src, nil
+}
+
+// record stamps an envelope with a response it was built from, and with the
+// robots.txt rule that governed the read when there was an interesting one.
+//
+// Fetchers call this instead of AddSource so that the two halves of a record's
+// provenance are filled in together. A record that names its sources but not the
+// override it was fetched under is the one shape of half-provenance that matters.
+func (c *Client) record(ctx context.Context, env *Envelope, src Source) {
+	env.AddSource(src)
+	// Which marketplace this was read from, on the record rather than implied by
+	// the host in a URL. It is what every Ref built from this record scopes its
+	// URI to, and amazon.com and amazon.co.uk publish different prices for the
+	// same ASIN.
+	if env.Marketplace == "" {
+		env.Marketplace = c.mkt.Slug
+	}
+	if env.Robots == nil {
+		env.Robots = c.RobotsNoteFor(ctx, src.URL)
+	}
+}
+
+// RobotsNoteFor is what robots.txt had to say about a URL, for the record.
+//
+// It answers from the copy CheckRobots already parsed, so it is a map lookup and
+// not a second request. It returns nil for the ordinary case of a URL nothing in
+// the file mentions, because a note on every record saying that nothing happened
+// is noise that teaches people to skip the field. The two cases that do get a
+// note are a read under --no-robots and a read of a path the file names, and
+// both are things a downstream consumer has a right to see without asking.
+func (c *Client) RobotsNoteFor(ctx context.Context, rawURL string) *RobotsNote {
+	// robots.txt is fetched by the raw path, and a fixture server is not
+	// amazon.com. Both are the same exemptions CheckRobots makes.
+	if strings.HasSuffix(pathAndQuery(rawURL), "/robots.txt") {
+		return nil
+	}
+	if c.base != "" && !c.forceRobots && !c.hostIsMarketplace() {
+		return nil
+	}
+	r, err := c.Robots(ctx)
+	if err != nil {
+		return nil
+	}
+	allowed, rule := r.Test(rawURL)
+	if allowed && rule.Pattern == "" && !c.noRobots {
+		return nil
+	}
+	return &RobotsNote{Allowed: allowed, Rule: rule.String(), Override: c.noRobots}
 }
 
 // ErrNotCached means a page was asked for without permission to fetch it and is

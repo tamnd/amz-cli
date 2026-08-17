@@ -73,11 +73,11 @@ type BrowsePage struct {
 	// Name is the page's title. On a browse node the h1 is either the word
 	// "Department" or empty, so this comes from the canonical slug or the meta
 	// description rather than from a heading.
-	Name         string   `json:"name,omitempty"`
-	CanonicalURL string   `json:"canonical_url,omitempty"`
-	URL          string   `json:"url,omitempty"`
-	ChildNodeIDs []string `json:"child_node_ids,omitempty"`
-	Shelves      []Shelf  `json:"shelves,omitempty"`
+	Name         string  `json:"name,omitempty"`
+	CanonicalURL string  `json:"canonical_url,omitempty"`
+	URL          string  `json:"url,omitempty"`
+	Related      []Ref   `json:"related,omitempty"`
+	Shelves      []Shelf `json:"shelves,omitempty"`
 	// Items is how many tiles the page held in total, across every shelf.
 	Items    int      `json:"items,omitempty"`
 	Envelope Envelope `json:"envelope,omitzero"`
@@ -106,16 +106,15 @@ type BrowseItem struct {
 	URL    string `json:"url,omitempty"`
 	Image  string `json:"image,omitempty"`
 
-	Price    float64 `json:"price,omitempty"`
-	Currency string  `json:"currency,omitempty"`
+	Price *Money `json:"price,omitempty"`
 	// WasPrice is the struck through price, and WasPriceLabel is what Amazon
 	// called it. The label matters: across the three captures it read "List:",
 	// "List Price:" and "Typical:", and a typical price is a computed average
 	// rather than a manufacturer's list price. Recording the number without the
 	// label would turn three different claims into one.
-	WasPrice      float64 `json:"was_price,omitempty"`
-	WasPriceLabel string  `json:"was_price_label,omitempty"`
-	DiscountPct   int     `json:"discount_pct,omitempty"`
+	WasPrice      *Money `json:"was_price,omitempty"`
+	WasPriceLabel string `json:"was_price_label,omitempty"`
+	DiscountPct   int    `json:"discount_pct,omitempty"`
 	// DealType is the badge message, "Limited time deal" or "Ends in".
 	DealType string `json:"deal_type,omitempty"`
 	// EndsSoon reports that Amazon drew a countdown on this tile. The clock
@@ -123,9 +122,9 @@ type BrowseItem struct {
 	// so the flag is what the page states and the time is not available.
 	EndsSoon bool `json:"ends_soon,omitempty"`
 
-	Rating       float64 `json:"rating,omitempty"`
-	RatingsCount int64   `json:"ratings_count,omitempty"`
-	Delivery     string  `json:"delivery,omitempty"`
+	Rating       *float64 `json:"rating,omitempty"`
+	RatingsCount *int64   `json:"ratings_count,omitempty"`
+	Delivery     string   `json:"delivery,omitempty"`
 
 	// Shelf and Position are where the tile sat. data-csa-c-pos is "1,12", the
 	// slot within the shelf and the slot of the shelf on the page, which is
@@ -167,7 +166,7 @@ func (c *Client) parseBrowsePage(node, url string, body []byte) (BrowsePage, err
 	bp.CanonicalNode = e.Str("canonical_node")
 	bp.Slug = e.Str("slug")
 	bp.Name = e.Str("name")
-	bp.ChildNodeIDs = childNodes(d, firstNonEmpty(bp.CanonicalNode, node))
+	bp.Related = relatedNodes(d, firstNonEmpty(bp.CanonicalNode, node), c.mkt.Slug, c.BaseURL())
 
 	// The shelves this page happens to carry are claimed by name as they are
 	// read, on top of the synthetic names, because a shelf widget is called
@@ -240,15 +239,14 @@ func (c *Client) readBrowseItem(r Region, shelf string, fields []Field, d *Doc) 
 		Title:         e.Str("title"),
 		URL:           absoluteURL(c.BaseURL(), e.Str("href")),
 		Image:         upgradeImage(e.Str("image")),
-		Price:         round2(e.Float("price")),
-		Currency:      firstNonEmpty(e.Str("currency"), c.mkt.Currency),
-		WasPrice:      round2(e.Float("was_price")),
+		Price:         money(e, "price", c.mkt),
+		WasPrice:      money(e, "was_price", c.mkt),
 		WasPriceLabel: strings.TrimSuffix(e.Str("was_price_label"), ":"),
 		DiscountPct:   int(e.Int("discount_pct")),
 		DealType:      e.Str("deal_type"),
 		EndsSoon:      e.Bool("ends_soon"),
-		Rating:        e.Float("rating"),
-		RatingsCount:  e.Int("ratings_count"),
+		Rating:        f64OrNil(e.Float("rating")),
+		RatingsCount:  i64OrNil(e.Int("ratings_count")),
 		Delivery:      e.Str("delivery"),
 		Shelf:         shelf,
 		Position:      int(e.Int("position")),
@@ -315,18 +313,40 @@ func imageArea(dim json.RawMessage) int {
 	return wh[0] * wh[1]
 }
 
-// childNodes is every other browse node this page links to.
+// siteChrome is the header, the footer and the shop-by-department menu, which
+// every page on amazon.com carries and none of them is about.
+//
+// It matters here because the node links in the chrome look exactly like the
+// node links in the page. Measured on the two browse captures of 2026-08-17, a
+// page for Electronics linked to twenty four nodes and eight of them were Gift
+// Cards, Sell, Registry, Shop with Points and the rest of the footer. Reporting
+// those as related categories is not a small inaccuracy: it says the Computers
+// node sits beside the Amazon Currency Converter.
+const siteChrome = "#navFooter, #nav-belt, #nav-main, #navbar, #nav-subnav, #rhf, .nav-footer, footer"
+
+// relatedNodes is every other browse node this page links to, with the words
+// Amazon used for them.
 //
 // A browse page links to its siblings and its children and gives no marker for
-// which is which, so these are recorded as related nodes rather than claimed as
-// a tree. The node the page itself is is excluded.
-func childNodes(d *Doc, self string) []string {
-	var out []string
+// which is which, so these are related nodes rather than a tree. They are Refs
+// rather than bare ids because the anchor text is the node's name and throwing
+// it away meant a consumer holding "565108" had to spend a request to find out
+// it means Laptops.
+func relatedNodes(d *Doc, self, mkt, base string) []Ref {
+	var out []Ref
+	seen := map[string]bool{self: true}
 	d.Selection().Find("a[href*='node=']").Each(func(_ int, s *goquery.Selection) {
 		m := nodeRe.FindStringSubmatch(attrOf(s, "href"))
-		if m != nil && m[1] != self {
-			out = append(out, m[1])
+		if m == nil || seen[m[1]] {
+			return
+		}
+		if s.Closest(siteChrome).Length() > 0 {
+			return
+		}
+		seen[m[1]] = true
+		if r := NewRef(RefNode, mkt, m[1], collapseSpace(s.Text()), base+"/b?node="+m[1]); r != nil {
+			out = append(out, *r)
 		}
 	})
-	return dedup(out)
+	return out
 }

@@ -11,7 +11,7 @@ import (
 // together", sponsored rails) found on a product detail page.
 func (c *Client) FetchRelated(ctx context.Context, asin string, limit int, emit func(Card) error) error {
 	u := c.ProductURL(asin)
-	body, err := c.Get(ctx, u, 12*time.Hour)
+	body, src, err := c.GetSource(ctx, u, 12*time.Hour)
 	if err != nil {
 		return err
 	}
@@ -19,6 +19,11 @@ func (c *Client) FetchRelated(ctx context.Context, asin string, limit int, emit 
 	if err != nil {
 		return err
 	}
+	// These cards are read straight off the detail page rather than through an
+	// extractor, so there is no page record to hang the response on. The rows
+	// still have to say where they came from, so the envelope is built here.
+	page := Envelope{Family: FamilyProduct}
+	c.record(ctx, &page, src)
 	seen := map[string]bool{asin: true}
 	count := 0
 	var perr error
@@ -35,7 +40,7 @@ func (c *Client) FetchRelated(ctx context.Context, asin string, limit int, emit 
 		return limit <= 0 || count < limit
 	}
 	doc.Find("li.a-carousel-card, .a-carousel-card, div[data-asin].sponsored-products-truncator-truncated, ol[data-acp-path] li").EachWithBreak(func(_ int, s *goquery.Selection) bool {
-		card := Card{Currency: c.mkt.Currency, Kind: relatedKind(s)}
+		card := Card{Kind: relatedKind(s)}
 		if v, ok := s.Attr("data-asin"); ok {
 			card.ASIN = v
 		}
@@ -49,10 +54,11 @@ func (c *Client) FetchRelated(ctx context.Context, asin string, limit int, emit 
 			card.URL = c.ProductURL(card.ASIN)
 		}
 		card.Title = collapseSpace(firstSelText(s, ".p13n-sc-truncate", ".a-truncate-full", "img[alt]"))
-		card.Price, _ = ParsePrice(s.Find(".a-price .a-offscreen, .p13n-sc-price").First().Text())
-		card.Rating = parseRating(s.Find(".a-icon-alt").First().Text())
-		card.RatingsCount = parseInt(s.Find(".a-size-small").First().Text())
+		card.Price = ParseMoney(s.Find(".a-price .a-offscreen, .p13n-sc-price").First().Text(), c.mkt, ".a-price .a-offscreen")
+		card.Rating = f64OrNil(parseRating(s.Find(".a-icon-alt").First().Text()))
+		card.RatingsCount = i64OrNil(parseInt(s.Find(".a-size-small").First().Text()))
 		card.Image = upgradeImage(attrSel(s, "img", "src"))
+		card.Envelope.Inherit(page)
 		return emitCard(card)
 	})
 	return perr

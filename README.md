@@ -40,7 +40,7 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 
 | Command | Reads |
 | --- | --- |
-| `amz product <ASIN\|url>...` | one or more product detail pages, fully normalized |
+| `amz product <ASIN\|url>...` | one or more product detail pages, fully normalized; `--depth` |
 | `amz price <ASIN\|url>...` | current price only |
 | `amz related <ASIN>` | recommendation cards from a product page |
 | `amz search <query>` | catalog search result cards |
@@ -52,7 +52,7 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz movers [category]` | biggest 24-hour rank movers |
 | `amz wished [category]` | most wished-for items |
 | `amz gifted [category]` | most gifted items |
-| `amz category <node_id\|url>` | a browse node: name, breadcrumb, children, top ASINs |
+| `amz category <node_id\|url>` | a browse node: name, related nodes, shelves, top ASINs |
 | `amz brand <slug\|url>` | a brand storefront |
 | `amz seller <id\|url>` | a third-party seller profile and rating breakdown |
 | `amz author <slug\|url>` | an Author Central page |
@@ -110,7 +110,7 @@ Collect a category's bestsellers and query the local store:
 ```bash
 amz bestsellers electronics -n 100 -o url | amz seed --file -
 amz crawl
-amz db query "select data->>'brand' brand, count(*) n from products group by brand order by n desc"
+amz db query "select data->'brand'->>'name' brand, count(*) n from products group by brand order by n desc"
 ```
 
 ### Global flags
@@ -130,6 +130,55 @@ amz db query "select data->>'brand' brand, count(*) n from products group by bra
     --no-cache     bypass the on-disk cache
     --dry-run      print the URL(s) that would be fetched, then stop
 ```
+
+## What a record says about itself
+
+Every record carries an `envelope`, which is the part of the record that talks
+about the rest of the record: which responses went into it, which surfaces those
+were, when they were retrieved, which region or payload answered each field, and
+what was looked for and not found.
+
+```console
+$ amz product B075F5X8BR -o json | jq -r '.envelope.via.price'
+corePrice
+
+$ amz product B075F5X8BR -o json | jq -r '.envelope.missed[] | .field + ": " + .why'
+similar_asins: product region "similarities" or "sims-consolidated-2_feature_div" not present on this page
+reviews: amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only
+```
+
+That second line is the one that matters. If a field is missing and nothing in
+`missed` names it, `amz` read the place that field lives and there was nothing
+there. Absence is an answer rather than a gap, and a product with no reviews is
+distinguishable from a product whose reviews `amz` was not allowed to read.
+
+A `missed` entry with `have` and `total` is the case people get wrong: the field
+is present and incomplete. Eight reviews on a page that states 4,812 comes back
+as `have: 8, total: 4812`, so counting the array and publishing that as the
+total is visibly the wrong move rather than an invisible one.
+
+Prices are objects, not numbers. Each carries the string Amazon printed beside
+the parse of it, so a wrong parse is recoverable instead of lost, and a missing
+price is `null` rather than `0`. References to other entities carry a
+marketplace-scoped URI, `amz:us/product/B075F5X8BR`, because the same ASIN is a
+different product at a different price in every marketplace Amazon runs.
+
+`--depth` decides how much of a product page is read:
+
+| Depth | Requests | What you get |
+| --- | --- | --- |
+| `quick` | 1 | the 374 KB mobile page: identity, price, rating |
+| `meta` | 1 | the full 2.2 MB detail page, rails dropped |
+| `full` | 1 | the same page with the recommendation rails kept |
+| `deep` | 2 + one per sibling | full, plus each variation sibling's own page and the seller |
+
+`meta` is the default. `deep` prints its bill and stops for `--yes` above twenty
+requests, because an apparel listing with 88 siblings is ninety requests for one
+record.
+
+`--flat` emits the older single-level record with prices as bare numbers. It is
+there so a pipeline written against v0.2.1 keeps running while it is updated, it
+is deprecated, and it goes away in v0.4.0.
 
 ## Who amz says it is
 
@@ -187,7 +236,7 @@ A scraper is a claim about somebody else's HTML, and the useful question is not 
 ```
 $ amz extraction
 FAMILY   REGION  PAYLOAD  ATTR  SELECTOR  TOTAL
-product  24      0        1     1         26
+product  25      0        1     1         27
 search   17      0        4     0         21
 chart    0       1        4     4         9
 browse   3       1        6     11        21
@@ -204,10 +253,11 @@ Point it at a page and it reports what that page actually yielded.
 ```
 $ amz extraction B075F5X8BR
 product  product  https://www.amazon.com/dp/B075F5X8BR  2359626 bytes
-23 fields set, 1 missed, 267 regions Amazon named that nothing reads
+26 fields set, 2 missed, 261 regions Amazon named that nothing reads
 
 not on this page:
   similar_asins  product region "similarities" or "sims-consolidated-2_feature_div" not present on this page
+  reviews        amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only (on /product-reviews/ and /portal/customer-reviews/)
 ```
 
 A miss is a field the registry declared and the page did not carry, and the sentence beside it is the parser saying what it looked for.
@@ -222,7 +272,7 @@ Each one records what the parser made of it on the day it was taken, and `amz ve
 ```
 $ amz verify --live
 CAPTURE         STATUS  DETAIL
-product_simple  moved   267 unread regions, was 266
+product_simple  moved   261 unread regions, was 260
 seller_rated    same    14 fields, 5 records
 ```
 

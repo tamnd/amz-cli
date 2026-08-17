@@ -104,7 +104,13 @@ func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
 		r.Title = collapseSpace(s.Find(`[data-hook="review-title"] span:last-child, [data-hook="review-title"]`).Last().Text())
 		r.Text = collapseSpace(s.Find(`[data-hook="review-body"] span`).First().Text())
 		dateLine := s.Find(`[data-hook="review-date"]`).First().Text()
-		r.Country, r.Date = splitReviewDate(dateLine)
+		var raw string
+		r.Country, raw = splitReviewDate(dateLine)
+		r.Date = NewDate(raw)
+		r.Author = NamedRef(RefPerson, r.ReviewerName)
+		if r.ReviewerID != "" {
+			r.Author = NewRef(RefPerson, c.mkt.Slug, r.ReviewerID, r.ReviewerName, "")
+		}
 		if s.Find(`[data-hook="avp-badge"]`).Length() > 0 {
 			r.VerifiedPurchase = true
 		}

@@ -211,6 +211,12 @@ func (o *Output) Emit(r Row) error {
 // templateData builds the map a --template renders against. Keys are the
 // record's JSON field names (so {{.asin}} works, matching --fields), decoded
 // from the record itself; the column/value pairs fill any gaps.
+//
+// Where a field is both a table column and a structured value, the column wins.
+// A price is an object now, so {{.price}} against the decoded record renders
+// map[currency:USD display:$12.99 value:12.99], which is not what anyone wrote
+// that template to get. The structured value is still there in -o json, which is
+// the format for reading it.
 func templateData(r Row) map[string]any {
 	data := map[string]any{}
 	if r.Value != nil {
@@ -219,11 +225,26 @@ func templateData(r Row) map[string]any {
 		}
 	}
 	for i, c := range r.Cols {
-		if _, ok := data[c]; !ok && i < len(r.Vals) {
+		if i >= len(r.Vals) {
+			break
+		}
+		switch v, ok := data[c]; {
+		case !ok, isStructured(v):
 			data[c] = r.Vals[i]
 		}
 	}
 	return data
+}
+
+// isStructured reports whether a decoded JSON value is an object or an array,
+// which is to say whether printing it in a line of text would print Go's idea of
+// a map rather than the value.
+func isStructured(v any) bool {
+	switch v.(type) {
+	case map[string]any, []any:
+		return true
+	}
+	return false
 }
 
 // Count returns how many rows were emitted.

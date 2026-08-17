@@ -3,7 +3,7 @@ package amz
 import (
 	"context"
 	"encoding/json"
-	"strconv"
+	"math"
 	"strings"
 	"time"
 )
@@ -34,11 +34,16 @@ func (c *Client) FetchProduct(ctx context.Context, asinOrURL string) (Product, e
 	if url == "" {
 		return Product{}, ErrNotFound
 	}
-	body, err := c.Get(ctx, url, 6*time.Hour)
+	body, src, err := c.GetSource(ctx, url, 6*time.Hour)
 	if err != nil {
 		return Product{}, err
 	}
-	return c.parseProduct(asin, url, body)
+	p, err := c.parseProduct(asin, url, body)
+	if err != nil {
+		return p, err
+	}
+	c.record(ctx, &p.Envelope, src)
+	return p, nil
 }
 
 // availabilityOutOfStock reports whether an availability line means "can't buy".
@@ -87,7 +92,13 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 	e := NewExtractor(doc)
 
 	// Rung 1 and the declared rung 3 and 4 fields.
-	e.Run(productFields(c.BaseURL(), asin))
+	//
+	// The unread pass is deferred to the end of this function rather than run
+	// inside Run, because the recommendation rails are discovered by pattern
+	// while parsing and are not in the registry. Marking unread first would put
+	// every rail that was read into the worklist of regions nobody reads.
+	fields := productFields(c.BaseURL(), asin)
+	e.RunFields(fields)
 
 	// Rung 2: the payloads, read from the raw body by byte offset.
 	ib := c.readImageBlock(e, body)
@@ -105,67 +116,69 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 	}
 
 	p.Title = e.Str("title")
-	p.Brand = e.Str("brand")
-	p.BrandURL = e.Str("brand_url")
-	if m := nodeIDRe.FindStringSubmatch(p.BrandURL); m != nil {
-		p.BrandID = m[1]
-	}
-	p.Price = e.Float("price")
-	p.Currency = e.Str("currency")
-	if p.Currency == "" {
-		p.Currency = c.mkt.Currency
-	}
-	p.ListPrice = e.Float("list_price")
-	if p.ListPrice > p.Price && p.Price > 0 {
-		p.Savings = round2(p.ListPrice - p.Price)
-		p.SavingsPct = int((1 - p.Price/p.ListPrice) * 100)
-	}
-	p.Coupon = e.Str("coupon")
-	p.Rating = e.Float("rating")
-	p.RatingsCount = e.Int("ratings_count")
-	p.AnsweredQs = int(e.Int("answered_qs"))
+	p.Brand = NewRef(RefBrand, c.mkt.Slug, brandIDIn(e.Str("brand_url")), e.Str("brand"), e.Str("brand_url"))
+	p.Byline = e.Str("brand")
+	p.Rating = f64OrNil(e.Float("rating"))
+	p.RatingsCount = i64OrNil(e.Int("ratings_count"))
 	p.BoughtPastMonth = e.Str("bought_past_month")
-	p.Availability = e.Str("availability")
-	p.InStock = p.Availability != "" && !availabilityOutOfStock(p.Availability)
+	p.BoughtPastMonthN = i64OrNil(parseCount(p.BoughtPastMonth))
 	p.Description = e.Str("description")
-	p.BulletPoints = e.Strings("bullet_points")
-	p.CategoryPath = e.Strings("category_path")
-	p.BrowseNodeIDs = e.Strings("browse_node_ids")
-	p.SoldBy = e.Str("sold_by")
-	p.SellerName = p.SoldBy
-	p.SellerID = e.Str("seller_id")
-	p.ShipsFrom = e.Str("ships_from")
-	p.FulfilledBy = p.ShipsFrom
-	p.Returns = e.Str("returns")
-	p.Condition = e.Str("condition")
+	p.Bullets = e.Strings("bullet_points")
 	p.SimilarASINs = e.Strings("similar_asins")
 	p.ParentASIN = e.Str("parent_asin")
 
-	if v, ok := e.Value("specs"); ok {
-		p.Specs, _ = v.(map[string]string)
-	}
-	if v, ok := e.Value("ranks"); ok {
-		p.Ranks, _ = v.([]ProductRank)
-		if len(p.Ranks) > 0 {
-			p.Rank = p.Ranks[0].Rank
-			p.RankCategory = p.Ranks[0].Category
+	if v, ok := e.Value("distribution"); ok {
+		if pct, ok := v.([5]int); ok {
+			p.Distribution = NewDistribution(pct, p.RatingsCount, provOf(e, "distribution"))
 		}
 	}
 
+	if p.Rating != nil || p.RatingsCount != nil {
+		// The page states how many people rated the product and shows the
+		// histogram, and it holds none of the reviews themselves. Both surfaces
+		// that do redirect to a sign-in, so this is a wall and not a gap in the
+		// parser, and the record says which of the two it is.
+		e.missSurface("reviews",
+			"amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only",
+			[]string{"/product-reviews/", "/portal/customer-reviews/"},
+			"")
+	}
+
+	if n := e.Int("answered_qs"); n > 0 {
+		// The question count is all /ask gives without a login, so the
+		// connection is honest about having loaded none of them.
+		p.Questions = NewConn(0, &n, c.BaseURL()+"/ask/questions/asin/"+asin)
+	}
+
+	p.Offer = c.buildOffer(e)
+
+	if v, ok := e.Value("specs"); ok {
+		p.Details, _ = v.(map[string]string)
+		p.ISBN10 = detailOf(p.Details, "ISBN-10")
+		p.ISBN13 = detailOf(p.Details, "ISBN-13")
+		p.ModelNumber = detailOf(p.Details, "Item model number", "Part Number")
+		p.UPC = detailOf(p.Details, "UPC")
+		p.EAN = detailOf(p.Details, "EAN")
+		p.Manufacturer = detailOf(p.Details, "Manufacturer")
+	}
+	if v, ok := e.Value("ranks"); ok {
+		p.Ranks, _ = v.([]Rank)
+	}
+	p.Rails = readRails(e, c.BaseURL())
+	p.Breadcrumb = breadcrumbRefs(c.mkt.Slug, c.BaseURL(), e.Strings("category_path"), e.Strings("browse_node_ids"))
+
 	if ib != nil {
-		p.ImageSet = ib.Images
+		p.Images = ib.Images
 		p.Videos = ib.Videos
-		p.ColorToASIN = ib.ColorToASIN
 		for _, img := range ib.Images {
 			if u := img.URL(); u != "" {
-				p.Images = append(p.Images, normalizeImageURL(u))
+				p.ImageURLs = append(p.ImageURLs, normalizeImageURL(u))
 			}
 		}
-		p.Images = dedup(p.Images)
+		p.ImageURLs = dedup(p.ImageURLs)
 	}
 	if tw != nil {
-		p.Variants = tw
-		p.VariantASINs = tw.ASINs()
+		p.Variation = tw.Variation()
 		if tw.ParentASIN != "" {
 			p.ParentASIN = tw.ParentASIN
 		}
@@ -173,8 +186,9 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 			// The page ships the variants near the current selection, not all of
 			// them. Recording both numbers makes an incomplete record visible
 			// rather than implied.
-			e.miss("variant_asins", "the page shipped "+strconv.Itoa(tw.Shipped())+
-				" of the "+strconv.Itoa(tw.Total)+" variations num_total_variations claims")
+			e.missPartial("variant_asins", tw.Shipped(), int64(tw.Total),
+				"the page ships only the variations near the current selection",
+				"amz product on each sibling asin")
 		}
 	}
 
@@ -195,14 +209,117 @@ func (c *Client) parseProduct(asin, url string, body []byte) (Product, error) {
 		}
 	}
 
+	claimed := claimedRegions(fields)
+	for _, r := range p.Rails {
+		claimed[r.Region] = true
+	}
+	e.MarkUnread(claimed)
+
 	p.Envelope = e.Envelope()
-	p.Envelope.RetrievedAt = p.FetchedAt.Format(time.RFC3339)
+	p.Envelope.RetrievedAt = p.FetchedAt
 	p.Envelope.AgentMap = doc.AgentMap()
 
-	if p.Title == "" && p.Price == 0 && p.Rating == 0 {
+	if p.Title == "" && p.Offer == nil && p.Rating == nil {
 		return p, ErrNotFound
 	}
 	return p, nil
+}
+
+// buildOffer assembles the buy box out of the fields the ladder already read.
+//
+// It returns nil rather than an empty struct when the page had no buy box at
+// all, which happens on an unavailable listing and on the soft 404. A record
+// with no offer and a record with an offer that quotes no price are different
+// readings of a page and this is the line between them.
+func (c *Client) buildOffer(e *Extractor) *Offer {
+	o := Offer{
+		Availability: e.Str("availability"),
+		Returns:      e.Str("returns"),
+		Condition:    e.Str("condition"),
+	}
+	if p, ok := e.Prov("price"); ok {
+		o.Via = p.Via
+	}
+	o.Price = money(e, "price", c.mkt)
+	o.ListPrice = money(e, "list_price", c.mkt)
+	if s := o.ListPrice.Sub(o.Price); s != nil && s.Amount.Sign() > 0 {
+		o.Savings = s
+		pct := int(math.Round((1 - o.Price.Float()/o.ListPrice.Float()) * 100))
+		o.SavingsPct = &pct
+	}
+	if d := e.Str("coupon"); d != "" {
+		o.Coupon = &Coupon{Display: d, Via: provOf(e, "coupon")}
+		if n := parseInt(d); n > 0 && strings.Contains(d, "%") {
+			pct := int(n)
+			o.Coupon.Percent = &pct
+		}
+	}
+	if o.Availability != "" {
+		in := !availabilityOutOfStock(o.Availability)
+		o.InStock = &in
+	}
+	o.SoldBy = NewRef(RefSeller, c.mkt.Slug, e.Str("seller_id"), e.Str("sold_by"), "")
+	if o.SoldBy != nil && o.SoldBy.ID != "" {
+		o.SoldBy.URL = c.SellerURL(o.SoldBy.ID)
+	}
+	o.ShipsFrom = NamedRef(RefSeller, e.Str("ships_from"))
+	if o.Price == nil && o.Availability == "" && o.SoldBy == nil {
+		return nil
+	}
+	return &o
+}
+
+// brandIDIn reads the browse node out of a brand storefront URL, which is the
+// only identifier a byline carries.
+func brandIDIn(url string) string {
+	if m := nodeIDRe.FindStringSubmatch(url); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// detailOf reads the first of several spellings out of the detail table. Amazon
+// labels the same fact "Item model number" in one category and "Part Number" in
+// the next, and neither spelling is more correct than the other.
+func detailOf(details map[string]string, keys ...string) string {
+	for _, k := range keys {
+		if v := details[k]; v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// breadcrumbRefs pairs the breadcrumb names with the node ids behind them.
+//
+// The two lists come from the same region and normally have the same length,
+// but a breadcrumb whose last crumb is plain text rather than a link produces
+// one more name than id. Pairing by index and leaving the surplus names as
+// unresolved refs keeps the trail intact rather than truncating it.
+func breadcrumbRefs(mkt, base string, names, ids []string) []Ref {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]Ref, 0, len(names))
+	for i, n := range names {
+		if i < len(ids) && ids[i] != "" {
+			if r := NewRef(RefNode, mkt, ids[i], n, base+"/b?node="+ids[i]); r != nil {
+				out = append(out, *r)
+				continue
+			}
+		}
+		if r := NamedRef(RefNode, n); r != nil {
+			out = append(out, *r)
+		}
+	}
+	return out
+}
+
+func provOf(e *Extractor, field string) string {
+	if p, ok := e.Prov(field); ok {
+		return p.Via
+	}
+	return ""
 }
 
 func (c *Client) readImageBlock(e *Extractor, body []byte) *ImageBlock {
