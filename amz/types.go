@@ -24,57 +24,85 @@ const (
 
 // ProductRank is one Best Sellers Rank line: a position within a named category.
 // A product is usually ranked once overall and again in one or more subcategories.
+//
+// Kept because the field rules return it and because --flat still emits it. New
+// code should read Product.Ranks, which is []Rank and carries the browse node
+// the rank line links to.
 type ProductRank struct {
 	Rank     int    `json:"rank"`
 	Category string `json:"category"`
 }
 
 // Product is a normalized amazon.com product detail page.
+//
+// Read the pointers. Rating, RatingsCount, ReviewsCount and BoughtPastMonthN are
+// pointers because a product with no ratings and a product whose rating region
+// was not read are different things, and a float64 zero cannot say which one it
+// is. That distinction is what the whole envelope exists to serve and it would
+// be undone here by four convenient value types.
 type Product struct {
-	ASIN            string            `json:"asin"`
-	Title           string            `json:"title"`
-	Brand           string            `json:"brand"`
-	BrandID         string            `json:"brand_id,omitempty"`
-	BrandURL        string            `json:"brand_url,omitempty"`
-	Price           float64           `json:"price"`
-	Currency        string            `json:"currency"`
-	ListPrice       float64           `json:"list_price,omitempty"`
-	Savings         float64           `json:"savings,omitempty"`
-	SavingsPct      int               `json:"savings_pct,omitempty"`
-	Coupon          string            `json:"coupon,omitempty"`
-	Rating          float64           `json:"rating"`
-	RatingsCount    int64             `json:"ratings_count"`
-	ReviewsCount    int64             `json:"reviews_count,omitempty"`
-	AnsweredQs      int               `json:"answered_qs,omitempty"`
-	BoughtPastMonth string            `json:"bought_past_month,omitempty"`
-	Availability    string            `json:"availability"`
-	InStock         bool              `json:"in_stock"`
-	Description     string            `json:"description,omitempty"`
-	BulletPoints    []string          `json:"bullet_points,omitempty"`
-	Specs           map[string]string `json:"specs,omitempty"`
-	Images          []string          `json:"images,omitempty"`
-	ImageSet        []Image           `json:"image_set,omitempty"`
-	Videos          []Video           `json:"videos,omitempty"`
-	CategoryPath    []string          `json:"category_path,omitempty"`
-	BrowseNodeIDs   []string          `json:"browse_node_ids,omitempty"`
-	SellerID        string            `json:"seller_id,omitempty"`
-	SellerName      string            `json:"seller_name,omitempty"`
-	SoldBy          string            `json:"sold_by,omitempty"`
-	ShipsFrom       string            `json:"ships_from,omitempty"`
-	FulfilledBy     string            `json:"fulfilled_by,omitempty"`
-	Returns         string            `json:"returns,omitempty"`
-	Condition       string            `json:"condition,omitempty"`
-	VariantASINs    []string          `json:"variant_asins,omitempty"`
-	Variants        *Twister          `json:"variants,omitempty"`
-	ColorToASIN     map[string]string `json:"color_to_asin,omitempty"`
-	ParentASIN      string            `json:"parent_asin,omitempty"`
-	SimilarASINs    []string          `json:"similar_asins,omitempty"`
-	Rank            int               `json:"rank,omitempty"`
-	RankCategory    string            `json:"rank_category,omitempty"`
-	Ranks           []ProductRank     `json:"ranks,omitempty"`
-	Marketplace     string            `json:"marketplace"`
-	URL             string            `json:"url"`
-	FetchedAt       time.Time         `json:"fetched_at"`
+	// identity
+	ASIN        string `json:"asin"`
+	ParentASIN  string `json:"parent_asin,omitempty"`
+	Marketplace string `json:"marketplace"`
+	URL         string `json:"url"`
+	Title       string `json:"title"`
+	ISBN10      string `json:"isbn10,omitempty"`
+	ISBN13      string `json:"isbn13,omitempty"`
+	ModelNumber string `json:"model_number,omitempty"`
+	UPC         string `json:"upc,omitempty"`
+	EAN         string `json:"ean,omitempty"`
+
+	// who makes it
+	Brand        *Ref   `json:"brand,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
+	// Byline is the bylineInfo text as written, before the Visit the / Store
+	// wrapper is stripped off it.
+	Byline  string `json:"byline,omitempty"`
+	Authors []Ref  `json:"authors,omitempty"`
+
+	// what it costs
+	Offer       *Offer `json:"offer,omitempty"`
+	OtherOffers *Conn  `json:"other_offers,omitempty"`
+
+	// what people think
+	Rating       *float64      `json:"rating,omitempty"`
+	RatingsCount *int64        `json:"ratings_count,omitempty"`
+	ReviewsCount *int64        `json:"reviews_count,omitempty"`
+	Distribution *Distribution `json:"distribution,omitempty"`
+	Reviews      *Conn         `json:"reviews,omitempty"`
+	Questions    *Conn         `json:"questions,omitempty"`
+
+	// where it sits
+	Breadcrumb []Ref  `json:"breadcrumb,omitempty"`
+	Ranks      []Rank `json:"ranks,omitempty"`
+
+	// what it is
+	Bullets     []string          `json:"bullets,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Details     map[string]string `json:"details,omitempty"`
+
+	// variants
+	Variation *Variation `json:"variation,omitempty"`
+
+	// media
+	Images    []Image  `json:"images,omitempty"`
+	ImageURLs []string `json:"image_urls,omitempty"`
+	Videos    []Video  `json:"videos,omitempty"`
+
+	// social proof
+	BoughtPastMonth string `json:"bought_past_month,omitempty"`
+	// BoughtPastMonthN is the parse of the line above. Both are kept, because
+	// Amazon writes "2K+", the parse is 2000, and the plus sign means the real
+	// number is higher. Keeping the string means nobody has to trust the parse.
+	BoughtPastMonthN *int64 `json:"bought_past_month_n,omitempty"`
+
+	// rails
+	Rails []Rail `json:"rails,omitempty"`
+
+	// related
+	SimilarASINs []string  `json:"similar_asins,omitempty"`
+	FetchedAt    time.Time `json:"fetched_at"`
 
 	// Extra carries every a-state blob the page shipped, verbatim. Three are
 	// useful today and the rest are interface state, but the cost of keeping
@@ -88,23 +116,27 @@ type Product struct {
 
 // Card is a lightweight hit from a search page, chart, or recommendation rail.
 type Card struct {
-	Position        int     `json:"position,omitempty"`
-	Rank            int     `json:"rank,omitempty"`
-	ASIN            string  `json:"asin"`
-	Title           string  `json:"title"`
-	Price           float64 `json:"price"`
-	ListPrice       float64 `json:"list_price,omitempty"`
-	Currency        string  `json:"currency,omitempty"`
-	Rating          float64 `json:"rating,omitempty"`
-	RatingsCount    int64   `json:"ratings_count,omitempty"`
-	Image           string  `json:"image,omitempty"`
-	Badge           string  `json:"badge,omitempty"`
-	Prime           bool    `json:"prime,omitempty"`
-	BoughtPastMonth string  `json:"bought_past_month,omitempty"`
-	Delivery        string  `json:"delivery,omitempty"`
-	Sponsored       bool    `json:"sponsored,omitempty"`
-	Kind            string  `json:"kind,omitempty"`
-	URL             string  `json:"url"`
+	Position     int      `json:"position,omitempty"`
+	Rank         int      `json:"rank,omitempty"`
+	ASIN         string   `json:"asin"`
+	Title        string   `json:"title,omitempty"`
+	Price        *Money   `json:"price,omitempty"`
+	ListPrice    *Money   `json:"list_price,omitempty"`
+	Rating       *float64 `json:"rating,omitempty"`
+	RatingsCount *int64   `json:"ratings_count,omitempty"`
+	Image        string   `json:"image,omitempty"`
+	Badge        string   `json:"badge,omitempty"`
+	Prime        *bool    `json:"prime,omitempty"`
+	// Change is the movers-and-shakers delta, "+412%".
+	Change          string `json:"change,omitempty"`
+	BoughtPastMonth string `json:"bought_past_month,omitempty"`
+	Delivery        string `json:"delivery,omitempty"`
+	// Sponsored is never omitempty. An ad and an organic result are different
+	// data, and a consumer that cannot tell them apart is holding a corrupted
+	// dataset without knowing it.
+	Sponsored bool   `json:"sponsored"`
+	Kind      string `json:"kind,omitempty"`
+	URL       string `json:"url"`
 	// Envelope says which of the card's slots answered and which were absent.
 	// A card that shipped no price and a card whose price slot moved are
 	// different facts and this is where they are told apart.
@@ -158,14 +190,22 @@ func (p SearchPage) Exhausted() bool {
 
 // Review is a single product review.
 type Review struct {
-	ReviewID         string            `json:"review_id"`
-	ASIN             string            `json:"asin"`
-	ReviewerID       string            `json:"reviewer_id,omitempty"`
-	ReviewerName     string            `json:"reviewer_name"`
-	Rating           int               `json:"rating"`
-	Title            string            `json:"title"`
-	Text             string            `json:"text"`
-	Date             string            `json:"date,omitempty"`
+	ReviewID string `json:"review_id"`
+	ASIN     string `json:"asin"`
+	// Author is the reviewer. It is almost always unresolved: the profile link
+	// goes to /gp/profile/, which robots.txt disallows, so amz has a display
+	// name and no identifier to go with it and says exactly that rather than
+	// dropping the name or inventing an id.
+	Author       *Ref   `json:"author,omitempty"`
+	ReviewerID   string `json:"reviewer_id,omitempty"`
+	ReviewerName string `json:"reviewer_name"`
+	Rating       int    `json:"rating"`
+	Title        string `json:"title"`
+	Text         string `json:"text"`
+	// Date is the line as Amazon wrote it plus the parse when one succeeded. A
+	// failed parse must not become a zero time, because a zero time is a real
+	// date in January of year 1 and everything downstream will treat it as one.
+	Date             *Date             `json:"date,omitempty"`
 	Country          string            `json:"country,omitempty"`
 	VerifiedPurchase bool              `json:"verified_purchase"`
 	HelpfulVotes     int               `json:"helpful_votes"`
@@ -188,8 +228,13 @@ type QA struct {
 	FetchedAt    time.Time `json:"fetched_at"`
 }
 
-// Offer is one buying option from the offer-listing page.
-type Offer struct {
+// OfferListing is one buying option from the offer-listing page.
+//
+// This is the row shape amz offers has emitted since v0.1.0 and it is kept as
+// it is. The buy box has its own type, Offer, which is a different thing read
+// off a different surface: one winning offer with delivery promises and a
+// coupon attached, rather than a flat list of everybody selling the item.
+type OfferListing struct {
 	ASIN         string    `json:"asin"`
 	Price        float64   `json:"price"`
 	Currency     string    `json:"currency"`
@@ -213,10 +258,9 @@ type BestsellerEntry struct {
 	Rank         int       `json:"rank"`
 	ASIN         string    `json:"asin"`
 	Title        string    `json:"title"`
-	Price        float64   `json:"price"`
-	Currency     string    `json:"currency,omitempty"`
-	Rating       float64   `json:"rating,omitempty"`
-	RatingsCount int64     `json:"ratings_count,omitempty"`
+	Price        *Money    `json:"price,omitempty"`
+	Rating       *float64  `json:"rating,omitempty"`
+	RatingsCount *int64    `json:"ratings_count,omitempty"`
 	Image        string    `json:"image,omitempty"`
 	URL          string    `json:"url"`
 	FetchedAt    time.Time `json:"fetched_at"`
@@ -244,13 +288,18 @@ type Category struct {
 	Name          string `json:"name"`
 	// Slug is the readable segment of the canonical URL, "electronics-store". It
 	// is the closest thing a browse page has to a stable name for itself.
-	Slug         string   `json:"slug,omitempty"`
-	ParentNodeID string   `json:"parent_node_id,omitempty"`
-	Breadcrumb   []string `json:"breadcrumb,omitempty"`
-	// ChildNodeIDs is every other browse node the page links to. Amazon gives no
-	// marker for which of those are children and which are siblings, so these
-	// are related nodes rather than a tree.
-	ChildNodeIDs []string `json:"child_node_ids,omitempty"`
+	Slug string `json:"slug,omitempty"`
+	// Related is every other browse node the page links to, as references with
+	// the names Amazon wrote for them. Amazon gives no marker for which of those
+	// are children and which are siblings, so these are related nodes and not a
+	// tree, and the field is named for what it is.
+	//
+	// There is no Parent and no Breadcrumb here. A /b page carries neither: both
+	// browse captures of 2026-08-17 have no wayfinding breadcrumb region, no
+	// a-breadcrumb, and no subnav element, so a browse node states its children
+	// and its siblings and never says what it hangs off. The edge upwards comes
+	// from a product's rank line instead, which does link its node.
+	Related []Ref `json:"related,omitempty"`
 	// Shelves is what the page actually is: a stack of merchandised carousels,
 	// each with its own heading. TopASINs is every ASIN across all of them, kept
 	// flat for the callers that only want identifiers.
@@ -429,10 +478,10 @@ type Deal struct {
 	// DealID is the promotion, amzn1.deal.1e7a7bea. Amazon puts it in the same
 	// attribute as the ASIN, and it is the identifier that will be gone when the
 	// promotion ends while the ASIN stays.
-	DealID    string  `json:"deal_id,omitempty"`
-	Title     string  `json:"title"`
-	DealPrice float64 `json:"deal_price"`
-	ListPrice float64 `json:"list_price,omitempty"`
+	DealID    string `json:"deal_id,omitempty"`
+	Title     string `json:"title"`
+	DealPrice *Money `json:"deal_price,omitempty"`
+	ListPrice *Money `json:"list_price,omitempty"`
 	// ListLabel is what Amazon called the struck through price. It reads "List",
 	// "List Price" or "Typical", and a typical price is a computed average
 	// rather than a manufacturer's list price, so the label travels with the
@@ -444,7 +493,6 @@ type Deal struct {
 	// filled in by script, so the served HTML states that the deal is ending and
 	// not when.
 	EndsSoon  bool      `json:"ends_soon,omitempty"`
-	Currency  string    `json:"currency,omitempty"`
 	URL       string    `json:"url"`
 	Image     string    `json:"image,omitempty"`
 	Shelf     string    `json:"shelf,omitempty"`

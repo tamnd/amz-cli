@@ -41,6 +41,13 @@ amz product B084DWG2VQ -o csv --fields asin,price,rating
 amz search "usb c cable" --fields asin,title,price -o table
 ```
 
+A name that is not one of the record's table columns is looked up in the record
+itself, so any field is reachable even when the table does not promote it:
+
+```bash
+amz product B084DWG2VQ -o csv --fields asin,ranks,bullets
+```
+
 `--no-header` drops the header row from table, CSV, and TSV.
 
 ## Templates
@@ -50,6 +57,35 @@ format:
 
 ```bash
 amz search "usb c cable" --template '{{.asin}}  {{.price}}  {{.title}}'
+```
+
+A template renders text, so a field that is both a table column and a structured
+value renders as the column. `{{.price}}` gives `12.99` rather than the price
+object it is in the record, which is still there in `-o json` for the callers
+that want the currency and the string Amazon printed.
+
+## Provenance is part of the record
+
+The `envelope` is an ordinary field, so nothing special is needed to read it:
+
+```bash
+amz product B084DWG2VQ -o jsonl | jq -r '.envelope.via.price'
+amz product B084DWG2VQ -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
+amz search "usb c cable" -o jsonl | jq -r '.envelope.sources[].url'
+```
+
+Rows that come many to a page, search cards and chart entries, carry the sources
+of the page they were read from, so a single line out of a stream can still say
+where it came from.
+
+## The older flat shape
+
+`--flat` emits the v0.2.1 product record: one level, no envelope, prices as bare
+numbers. It exists so a pipeline written against that shape keeps running while
+it is updated, it is deprecated, and it goes away in v0.4.0.
+
+```bash
+amz product B084DWG2VQ --flat -o jsonl
 ```
 
 ## Writing to a file
@@ -74,5 +110,7 @@ branch without parsing output:
 | 3 | no data (the surface was empty) |
 | 4 | partial (some pages fetched, some failed) |
 | 5 | blocked (Amazon served the bot wall) |
+| 7 | disallowed by robots.txt, and the rule that decided it is named in the message |
+| 8 | robots.txt could not be fetched, so nothing was read |
 
 See [troubleshooting](/reference/troubleshooting/) for what to do with code 5.

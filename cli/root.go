@@ -115,12 +115,17 @@ type App struct {
 	Refresh     bool
 	DryRun      bool
 	Raw         bool
-	OutFile     string
-	NoHeader    bool
-	Template    string
-	ConfigPath  string
-	NoRobots    bool
-	Yes         bool
+	// Flat emits the v0.2.1 product record instead of the nested one.
+	//
+	// Deprecated: it goes in v0.4.0. It is here so a script that reads .price
+	// with jq has a version to move in rather than a morning.
+	Flat       bool
+	OutFile    string
+	NoHeader   bool
+	Template   string
+	ConfigPath string
+	NoRobots   bool
+	Yes        bool
 
 	// Out is where rendered records go (cobra's stdout, or a file for -O).
 	Out io.Writer
@@ -226,6 +231,16 @@ func Root() *cobra.Command {
 		Version:       Version,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			app.Out = cmd.OutOrStdout()
+			// The notice is printed here rather than through MarkDeprecated for
+			// two reasons. MarkDeprecated hides the flag, and a compatibility
+			// flag nobody can find in --help is not one. It also writes through
+			// cobra's OutOrStderr, which is stdout whenever a caller has set an
+			// output writer, and a warning in the middle of a JSON array is a
+			// broken pipeline rather than a helpful message.
+			if app.Flat {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
+					"amz: --flat is deprecated and is removed in v0.4.0. The nested record keeps the envelope and tells an absent field apart from a zero one.")
+			}
 		},
 	}
 
@@ -254,6 +269,7 @@ func Root() *cobra.Command {
 	pf.BoolVar(&app.Refresh, "refresh", false, "ignore cached copy but repopulate it")
 	pf.BoolVar(&app.DryRun, "dry-run", false, "print the URL(s) that would be fetched, then stop")
 	pf.BoolVar(&app.Raw, "raw", false, "emit the underlying HTML/JSON instead of a parsed record")
+	pf.BoolVar(&app.Flat, "flat", false, "emit the v0.2.1 flat product record (deprecated, removed in v0.4.0)")
 	pf.StringVarP(&app.OutFile, "out", "O", "", "write output to a file")
 	pf.BoolVar(&app.NoHeader, "no-header", false, "omit the table/CSV header row")
 	pf.StringVar(&app.Template, "template", "", "Go text/template applied per row")

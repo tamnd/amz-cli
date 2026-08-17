@@ -3,6 +3,7 @@ package amz
 import (
 	"context"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -31,7 +32,7 @@ func TestStoreConcurrentWrites(t *testing.T) {
 			p := Product{
 				ASIN:        "B" + string(rune('A'+i)) + "000000001",
 				Marketplace: "us",
-				Price:       float64(i),
+				Title:       "concurrent write " + strconv.Itoa(i),
 				FetchedAt:   time.Unix(int64(i), 0).UTC(),
 			}
 			errs[i] = s.PutProduct(context.Background(), p)

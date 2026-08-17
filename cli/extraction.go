@@ -176,7 +176,7 @@ func pageReport(cmd *cobra.Command, app *App, arg string, unread, showFields boo
 		_, _ = fmt.Fprintln(w, "\nnot on this page:")
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 		for _, m := range x.Envelope.Missed {
-			_, _ = fmt.Fprintf(tw, "  %s\t%s\n", m.Field, m.Why)
+			_, _ = fmt.Fprintf(tw, "  %s\t%s%s\n", m.Field, m.Why, missTail(m))
 		}
 		_ = tw.Flush()
 	}
@@ -194,6 +194,29 @@ func pageReport(cmd *cobra.Command, app *App, arg string, unread, showFields boo
 		}
 	}
 	return nil
+}
+
+// missTail is the part of a miss that says what to do about it.
+//
+// The sentence alone leaves the three interesting cases looking the same in a
+// terminal. A field that lives on a page this fetch did not read is a request
+// away, a field that came back partial is a count the reader has to not mistake
+// for the total, and a field the page simply does not carry is neither.
+func missTail(m amz.Miss) string {
+	var parts []string
+	if m.Total > 0 {
+		parts = append(parts, fmt.Sprintf("have %d of %d", m.Have, m.Total))
+	}
+	if len(m.Surfaces) > 0 {
+		parts = append(parts, "on "+strings.Join(m.Surfaces, " and "))
+	}
+	if m.Fix != "" {
+		parts = append(parts, m.Fix)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
 
 func verifyCmd(app *App) *cobra.Command {

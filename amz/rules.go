@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
@@ -77,6 +78,12 @@ func LinkHref(base string) FieldRule {
 // currency, the thousands separators and the decimal in one string, where the
 // visible spans split them across three elements for layout. Reading the visible
 // spans means reassembling a number Amazon already assembled.
+//
+// It answers with that string and not with a number. The separator convention is
+// a property of the marketplace and not of the string, so "1.299" is one
+// thousand two hundred and ninety nine euros on amazon.de and one dollar
+// twenty nine on amazon.com, and only the caller knows which host served the
+// page. ParseMoney does the conversion with that knowledge in hand.
 func Price() FieldRule { return PriceOf(".a-offscreen", ".a-price") }
 
 // PriceOf is Price against a different set of selectors, which the chart family
@@ -85,13 +92,13 @@ func Price() FieldRule { return PriceOf(".a-offscreen", ".a-price") }
 func PriceOf(sels ...string) FieldRule {
 	return func(_ *Extractor, r Region) (any, bool) {
 		for _, sel := range sels {
-			if t := strings.TrimSpace(nodeText(r.Find(sel).First())); t != "" {
+			if t := collapseSpace(nodeText(r.Find(sel).First())); t != "" {
 				if v, _ := ParsePrice(t); v > 0 {
-					return v, true
+					return t, true
 				}
 			}
 		}
-		return 0.0, false
+		return "", false
 	}
 }
 
@@ -122,7 +129,7 @@ func PriceCurrencyOf(sels ...string) FieldRule {
 // which is how a list price is told from the price being charged.
 func PriceLabelled(labels ...string) FieldRule {
 	return func(_ *Extractor, r Region) (any, bool) {
-		var found float64
+		var found string
 		r.Find(".a-row, span, div").EachWithBreak(func(_ int, s *goquery.Selection) bool {
 			t := collapseSpace(nodeText(s))
 			if t == "" || len(t) > 120 {
@@ -133,13 +140,13 @@ func PriceLabelled(labels ...string) FieldRule {
 					continue
 				}
 				if v, _ := ParsePrice(t); v > 0 {
-					found = v
+					found = t
 					return false
 				}
 			}
 			return true
 		})
-		return found, found > 0
+		return found, found != ""
 	}
 }
 
@@ -152,13 +159,13 @@ func StrikePrice() FieldRule {
 			"[data-a-strike='true'] .a-offscreen",
 			".a-text-strike",
 		} {
-			if t := strings.TrimSpace(nodeText(r.Find(sel).First())); t != "" {
+			if t := collapseSpace(nodeText(r.Find(sel).First())); t != "" {
 				if v, _ := ParsePrice(t); v > 0 {
-					return v, true
+					return t, true
 				}
 			}
 		}
-		return 0.0, false
+		return "", false
 	}
 }
 
@@ -514,7 +521,40 @@ func ASINs(exclude string) FieldRule {
 	}
 }
 
-var rankLineRe = regexp.MustCompile(`#([\d,]+)\s+in\s+([^(#\n]+)`)
+// rankLineRe reads one rank line. The third group is the parenthetical Amazon
+// puts after the department rank and after nothing else, "(See Top 100 in
+// Electronics)", which is the only marker on the page for which of these lines
+// is the overall sales rank.
+var rankLineRe = regexp.MustCompile(`#([\d,]+)\s+in\s+([^(#\n]+)(\([^)]*\))?`)
+
+// rankNodeRe is the browse node in the chart link a subcategory rank line wraps
+// its category name in, /gp/bestsellers/electronics/12097478011/ref=x.
+//
+// The department line links the same chart without a node, because the whole
+// department is the chart, so only the subcategory lines yield an identifier and
+// that is the honest outcome rather than a gap.
+var rankNodeRe = regexp.MustCompile(`/(?:gp/bestsellers|zgbs)/[^/]+/(\d+)`)
+
+// rankNodes maps the text of each rank line's chart link to the browse node it
+// points at.
+//
+// The anchor text is the category name Amazon printed in the line, so this is an
+// exact join rather than a guess: the rank regex reads the same words out of the
+// same line. It is done as a second pass because the rank lines are read from
+// the text of the whole block and the hrefs do not survive that.
+func rankNodes(r Region) map[string]string {
+	out := map[string]string{}
+	r.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
+		m := rankNodeRe.FindStringSubmatch(attrOf(s, "href"))
+		if m == nil {
+			return
+		}
+		if t := collapseSpace(s.Text()); t != "" {
+			out[t] = m[1]
+		}
+	})
+	return out
+}
 
 // Ranks reads every Best Sellers Rank line in the region.
 func Ranks() FieldRule {
@@ -522,7 +562,8 @@ func Ranks() FieldRule {
 		if !r.Exists() {
 			return nil, false
 		}
-		var out []ProductRank
+		nodes := rankNodes(r)
+		var out []Rank
 		r.Find("li, tr, span").Each(func(_ int, s *goquery.Selection) {
 			t := nodeText(s)
 			if !strings.Contains(t, "Best Sellers Rank") && !strings.Contains(t, "Bestsellers Rank") {
@@ -534,7 +575,24 @@ func Ranks() FieldRule {
 				if n == 0 || cat == "" {
 					continue
 				}
-				out = append(out, ProductRank{Rank: int(n), Category: cat})
+				// The department rank is the one Amazon offers a Top 100 link
+				// for, and the subcategory lines carry no such link. That marker
+				// is read here rather than assuming the first line is the
+				// department, because the order Amazon prints them in has moved
+				// before and a positional assumption fails silently when it does.
+				rk := Rank{
+					Rank:     int(n),
+					Category: cat,
+					Overall:  strings.Contains(m[3], "Top 100"),
+					Via:      r.Name(),
+				}
+				// The reference is left unresolved here because a rule has no
+				// marketplace to scope a URI to. parseProduct finishes it, the
+				// same way it finishes the breadcrumb.
+				if id := nodes[cat]; id != "" {
+					rk.Node = &Ref{Kind: RefNode, ID: id, Name: cat}
+				}
+				out = append(out, rk)
 			}
 		})
 		out = dedupRanks(out)
@@ -542,7 +600,7 @@ func Ranks() FieldRule {
 	}
 }
 
-func dedupRanks(in []ProductRank) []ProductRank {
+func dedupRanks(in []Rank) []Rank {
 	seen := map[string]bool{}
 	out := in[:0]
 	for _, r := range in {
@@ -554,6 +612,42 @@ func dedupRanks(in []ProductRank) []ProductRank {
 		out = append(out, r)
 	}
 	return out
+}
+
+// starPctRe reads one bucket out of the label Amazon writes on each histogram
+// bar. The label is the whole statement: the percentage and which star it
+// belongs to, in one string meant for a screen reader.
+var starPctRe = regexp.MustCompile(`(\d+)\s*percent of reviews have (\d)\s*stars?`)
+
+// RatingHistogram reads the five bucket distribution.
+//
+// Amazon publishes percentages and not counts, and it publishes them only in the
+// aria-label. The visible cell says "73%" with no indication of which star it
+// belongs to, and the bar width is a rendering. The label says both, so it is the
+// only honest source on the page.
+//
+// The buckets are indexed one star at 0 through five stars at 4, taken from the
+// label rather than from the row order, because Amazon prints five star first
+// and a positional read would silently reverse the whole histogram.
+func RatingHistogram() FieldRule {
+	return func(_ *Extractor, r Region) (any, bool) {
+		var pct [5]int
+		found := false
+		r.Find("[aria-label*='percent of reviews']").Each(func(_ int, s *goquery.Selection) {
+			m := starPctRe.FindStringSubmatch(attrOf(s, "aria-label"))
+			if m == nil {
+				return
+			}
+			star, _ := strconv.Atoi(m[2])
+			if star < 1 || star > 5 {
+				return
+			}
+			n, _ := strconv.Atoi(m[1])
+			pct[star-1] = n
+			found = true
+		})
+		return pct, found
+	}
 }
 
 // SpecRows reads a label and value table into a map.
@@ -711,7 +805,8 @@ func BadgeMessage() FieldRule {
 // which is the point of running the cross check at all.
 func DiscountFromPrices() FieldRule {
 	return func(e *Extractor, _ Region) (any, bool) {
-		now, was := e.Float("price"), e.Float("was_price")
+		now, _ := ParsePrice(e.Str("price"))
+		was, _ := ParsePrice(e.Str("was_price"))
 		if now <= 0 || was <= 0 || now >= was {
 			return int64(0), false
 		}

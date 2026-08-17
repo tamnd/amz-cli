@@ -54,7 +54,14 @@ amz movers -m uk -o jsonl
 ```
 
 Each `BestsellerEntry` carries `rank`, `asin`, `title`, `price`, `rating`,
-`ratings_count`, and the `list_type`/`category`/`node_id` it came from.
+`ratings_count`, the `list_type`, `category` and `node_id` it came from, and an
+`envelope` naming the response it was read off.
+
+Ranks come from the page and are never counted. Page one covers ranks 1 to 50
+while drawing 30 tiles, so numbering entries as they arrive would label rank 51
+as rank 31 and keep doing it for the length of the chart. An entry Amazon listed
+without drawing a tile for it comes back with `rank_only` set, its rank and its
+ASIN, which is a rank amz can report rather than an item it has to drop.
 
 ## Deals
 
@@ -66,8 +73,15 @@ amz deals --min-discount 30           # 30% off or better
 amz deals --department electronics -o jsonl
 ```
 
-Each `Deal` carries `deal_price`, `list_price`, `discount_pct`, and `badge`
-(for example "Lightning Deal").
+Each `Deal` carries `asin`, `deal_id`, `title`, `deal_price`, `list_price`,
+`list_label`, `discount_pct`, `badge` (for example "Lightning Deal"), `ends_soon`,
+`shelf`, and `position`.
+
+`list_label` travels with `list_price` because Amazon writes "List", "List Price"
+and "Typical" for it, and a typical price is a computed average rather than a
+manufacturer's list price. Keeping the number without the label would turn three
+different claims into one. `deal_id` is the promotion and it is gone when the
+promotion ends, while the ASIN stays.
 
 ## Compose
 

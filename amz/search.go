@@ -88,13 +88,17 @@ func (c *Client) Search(ctx context.Context, query string, q SearchQuery, emit f
 	count := 0
 	for {
 		u := c.SearchURL(query, q, page)
-		body, err := c.Get(ctx, u, time.Hour)
+		body, src, err := c.GetSource(ctx, u, time.Hour)
 		if err != nil {
 			return err
 		}
 		sp, err := c.parseSearchPage(query, u, page, body)
 		if err != nil {
 			return err
+		}
+		c.record(ctx, &sp.Envelope, src)
+		for i := range sp.Cards {
+			sp.Cards[i].Envelope.Inherit(sp.Envelope)
 		}
 		if sp.Exhausted() {
 			return nil
@@ -187,20 +191,21 @@ func (c *Client) readCard(d *Doc, r Region, fields []Field) (Card, bool) {
 		URL:             c.ProductURL(asin),
 		Position:        int(e.Int("position")),
 		Title:           e.Str("title"),
-		Price:           e.Float("price"),
-		ListPrice:       e.Float("list_price"),
-		Currency:        e.Str("currency"),
-		Rating:          e.Float("rating"),
-		RatingsCount:    e.Int("ratings_count"),
+		Price:           money(e, "price", c.mkt),
+		ListPrice:       money(e, "list_price", c.mkt),
+		Rating:          f64OrNil(e.Float("rating")),
+		RatingsCount:    i64OrNil(e.Int("ratings_count")),
 		Image:           upgradeImage(e.Str("image")),
 		Badge:           e.Str("badge"),
-		Prime:           e.Bool("prime"),
 		Sponsored:       e.Bool("sponsored"),
 		BoughtPastMonth: e.Str("bought_past_month"),
 		Delivery:        e.Str("delivery"),
 	}
-	if card.Currency == "" {
-		card.Currency = c.mkt.Currency
+	// Prime is a pointer and it is set only when the card carried the badge
+	// region at all. A search card that Amazon did not draw a Prime icon on is
+	// not a statement that the item is ineligible, and false would read as one.
+	if e.Has("prime") {
+		card.Prime = boolPtr(e.Bool("prime"))
 	}
 	card.Envelope = e.Envelope()
 	return card, true

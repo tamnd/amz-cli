@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 )
 
 // The extraction ladder and its bookkeeping.
@@ -60,9 +61,17 @@ type Prov struct {
 // facts. The first has the region present and empty; the second does not have
 // the region. Only the second is a parser problem, and only this distinction
 // makes it visible.
+//
+// Have and Total carry the partial case: eight reviews on a page that says
+// 4,812. Fix names the command that would get the rest, when one exists, because
+// a report of a gap that does not say how to close it is only half useful.
 type Miss struct {
-	Field string `json:"field"`
-	Why   string `json:"why"`
+	Field    string   `json:"field"`
+	Why      string   `json:"why"`
+	Have     int      `json:"have,omitempty"`
+	Total    int64    `json:"total,omitempty"`
+	Surfaces []string `json:"surfaces,omitempty"`
+	Fix      string   `json:"fix,omitempty"`
 }
 
 // Disagreement is one field answered differently by two sources.
@@ -70,10 +79,42 @@ type Miss struct {
 // Not a defect to hide. On Amazon the buy box price and the apex price genuinely
 // differ when a subscription discount or a coupon applies, and a tool that
 // silently picks one is throwing away the interesting part.
+//
+// Both halves are recorded: the value the record kept with the source that gave
+// it, and the value that lost with the source it came from. A disagreement that
+// only names the loser cannot be checked without refetching the page.
 type Disagreement struct {
-	Field string `json:"field"`
-	Via   string `json:"via"`
-	Value any    `json:"value"`
+	Field    string `json:"field"`
+	Via      string `json:"via"`
+	Value    any    `json:"value"`
+	Alt      string `json:"alt"`
+	AltValue any    `json:"alt_value"`
+}
+
+// Source is one HTTP response that went into a record.
+//
+// A product record built from the detail page alone and one built from the
+// detail page plus a seller page are different reads, and a consumer deciding
+// whether to trust a field needs to know which surfaces were actually fetched
+// rather than which ones the command name implies.
+type Source struct {
+	Surface     string    `json:"surface,omitempty"`
+	URL         string    `json:"url"`
+	Status      int       `json:"status,omitempty"`
+	Bytes       int       `json:"bytes,omitempty"`
+	Cached      bool      `json:"cached"`
+	RetrievedAt time.Time `json:"retrieved_at,omitzero"`
+}
+
+// RobotsNote records that a robots.txt rule was involved in this read. It is
+// present only when one was, because a note on every record saying nothing
+// happened is noise that trains people to skip the field.
+type RobotsNote struct {
+	Allowed bool   `json:"allowed"`
+	Rule    string `json:"rule,omitempty"`
+	// Override is true when --no-robots was used, which is the one thing about a
+	// record that a downstream consumer most needs to be able to see.
+	Override bool `json:"override"`
 }
 
 // Extractor accumulates one record's values and their provenance.
@@ -115,7 +156,16 @@ func (e *Extractor) set(field string, v any, level Level, via string) {
 	}
 	if old, seen := e.vals[field]; seen {
 		if !sameValue(old, v) {
-			e.dis = append(e.dis, Disagreement{Field: field, Via: via, Value: v})
+			// Both halves, named. The record kept old from the source already in
+			// prov, and via disagreed with v. Recording only the loser meant a
+			// reader had to refetch the page to find out what was kept.
+			e.dis = append(e.dis, Disagreement{
+				Field:    field,
+				Via:      e.prov[field].Via,
+				Value:    old,
+				Alt:      via,
+				AltValue: v,
+			})
 		}
 		return
 	}
@@ -127,6 +177,52 @@ func (e *Extractor) set(field string, v any, level Level, via string) {
 // miss records a field that was looked for and not found.
 func (e *Extractor) miss(field, why string) {
 	e.missed = append(e.missed, Miss{Field: field, Why: why})
+}
+
+// missSurface records a field whose data lives on a surface this fetch did not
+// read, naming the surfaces so the entry is checkable rather than a shrug.
+//
+// This is the second of the four states and the one a consumer is most likely to
+// mistake for the first. A record with no reviews because the corpus is behind a
+// sign-in and a record with no reviews because the product has none are the same
+// JSON, and the only thing that tells them apart is this entry.
+func (e *Extractor) missSurface(field, why string, surfaces []string, fix string) {
+	e.missed = append(e.missed, Miss{Field: field, Why: why, Surfaces: surfaces, Fix: fix})
+}
+
+// missPartial records a field that was found and is incomplete: eight reviews on
+// a page that says 4,812, a dozen variation siblings on a listing that claims
+// hundreds.
+//
+// This is the third of the four states of a missing field and the one most
+// likely to be read as the first. A consumer who counts len() on a partial slice
+// and publishes it as a total has produced a wrong number with nothing to warn
+// them, so the entry carries both figures and the command that would close the
+// gap when there is one.
+func (e *Extractor) missPartial(field string, have int, total int64, why, fix string) {
+	e.missed = append(e.missed, Miss{Field: field, Why: why, Have: have, Total: total, Fix: fix})
+}
+
+// liveMisses drops the entries for fields that another source went on to fill.
+//
+// A book has no corePrice region and puts its price in the books team's own buy
+// box, so the first price rule records a miss and the second rule answers. Both
+// facts are true and only one of them is useful: the record has a price, and a
+// missed entry naming a field that is right there in the record teaches a reader
+// to ignore the whole list.
+//
+// A partial is never dropped. It exists precisely because the field is set and
+// the value is short of the total, which is the one case where a field being
+// present and a field being incomplete are both worth saying.
+func (e *Extractor) liveMisses() []Miss {
+	var out []Miss
+	for _, m := range e.missed {
+		if _, ok := e.vals[m.Field]; ok && m.Have == 0 && m.Total == 0 {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // unreadRegion records a named region present on the page that no field claims.
@@ -228,15 +324,35 @@ func (e *Extractor) LevelCounts() map[Level]int {
 }
 
 // Envelope is the provenance block every record carries.
+//
+// The consumer facing rule this exists to support is one sentence: if a field is
+// absent and there is no Missed entry naming it, the tool looked and there was
+// nothing there. Everything else in here is what makes that sentence checkable.
 type Envelope struct {
-	Family      Family            `json:"family"`
-	Via         map[string]string `json:"via,omitempty"`
-	Levels      map[string]int    `json:"levels,omitempty"`
-	Missed      []Miss            `json:"missed,omitempty"`
-	Disagree    []Disagreement    `json:"disagree,omitempty"`
-	Unread      []string          `json:"unread,omitempty"`
-	AgentMap    json.RawMessage   `json:"agent_map,omitempty"`
-	RetrievedAt string            `json:"retrieved_at,omitempty"`
+	Family      Family `json:"family"`
+	Marketplace string `json:"marketplace,omitempty"`
+	// Surfaces names which of the surfaces in Ops were read, and Sources is the
+	// responses themselves.
+	Surfaces []string `json:"surfaces,omitempty"`
+	Sources  []Source `json:"sources,omitempty"`
+	// Depth is which of quick, meta, full and deep produced this record. A field
+	// that is absent from a quick read and present in a full one is not a parser
+	// that broke between two crawls, and this is the field that says so.
+	Depth string `json:"depth,omitempty"`
+	// Via maps a field to the region, payload or selector that produced it, and
+	// Level maps it to the rung that was. Levels is the same information counted,
+	// which is what the ladder report reads.
+	Via      map[string]string `json:"via,omitempty"`
+	Level    map[string]int    `json:"level,omitempty"`
+	Levels   map[string]int    `json:"levels,omitempty"`
+	Missed   []Miss            `json:"missed,omitempty"`
+	Disagree []Disagreement    `json:"disagree,omitempty"`
+	Unread   []string          `json:"unread,omitempty"`
+	Robots   *RobotsNote       `json:"robots,omitempty"`
+	AgentMap json.RawMessage   `json:"agent_map,omitempty"`
+	// Extra carries payloads the page shipped that no field reads yet, verbatim.
+	Extra       map[string]json.RawMessage `json:"extra,omitempty"`
+	RetrievedAt time.Time                  `json:"retrieved_at,omitzero"`
 }
 
 // Envelope builds the provenance block for this record.
@@ -244,19 +360,56 @@ func (e *Extractor) Envelope() Envelope {
 	env := Envelope{
 		Family: e.fam,
 		Via:    make(map[string]string, len(e.prov)),
+		Level:  make(map[string]int, len(e.prov)),
 		Levels: map[string]int{},
 	}
 	for f, p := range e.prov {
 		env.Via[f] = p.Via
+		env.Level[f] = int(p.Level)
 		env.Levels[p.Level.String()]++
 	}
-	env.Missed = e.missed
+	env.Missed = e.liveMisses()
 	env.Disagree = e.dis
 	if len(e.unread) > 0 {
 		env.Unread = append([]string(nil), e.unread...)
 		sort.Strings(env.Unread)
 	}
 	return env
+}
+
+// AddSource records a response that went into this record.
+func (env *Envelope) AddSource(s Source) {
+	env.Sources = append(env.Sources, s)
+	if s.Surface != "" && !containsString(env.Surfaces, s.Surface) {
+		env.Surfaces = append(env.Surfaces, s.Surface)
+	}
+	if env.RetrievedAt.IsZero() || s.RetrievedAt.After(env.RetrievedAt) {
+		env.RetrievedAt = s.RetrievedAt
+	}
+}
+
+// Inherit copies a page's sources and robots note onto a row that was read out
+// of that same response.
+//
+// A search result and a chart entry are emitted one per line and are what a
+// consumer actually holds, so "which response is this from" has to be on the row
+// and not only on the page record that produced it and was never printed.
+func (env *Envelope) Inherit(parent Envelope) {
+	for _, s := range parent.Sources {
+		env.AddSource(s)
+	}
+	if env.Robots == nil {
+		env.Robots = parent.Robots
+	}
+}
+
+func containsString(ss []string, want string) bool {
+	for _, s := range ss {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
 
 // MarkUnread walks every named region on the page and records the ones no field

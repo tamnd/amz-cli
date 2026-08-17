@@ -15,7 +15,7 @@ Append a timestamped price row to a CSV on every run, then watch the file:
 
 ```bash
 amz price B084DWG2VQ -o jsonl \
-  | jq -r '[now|todate, .asin, .price, .currency] | @csv' \
+  | jq -r '[now|todate, .asin, .price.value, .price.currency] | @csv' \
   >> price_log.csv
 ```
 
@@ -24,7 +24,7 @@ watch a basket, loop a file of ASINs:
 
 ```bash
 while read asin; do amz price "$asin" -o jsonl; done < watchlist.txt \
-  | jq -r '[now|todate, .asin, .price] | @csv' >> basket_log.csv
+  | jq -r '[now|todate, .asin, .price.value] | @csv' >> basket_log.csv
 ```
 
 ## Find the cheapest offer for an ASIN
@@ -56,13 +56,13 @@ amz bestsellers electronics -n 25 -o url \
 Now ask questions of the file. Average discount among the top 25:
 
 ```bash
-jq -s 'map(.savings_pct // 0) | add / length' top25.jsonl
+jq -s 'map(.offer.savings_pct // 0) | add / length' top25.jsonl
 ```
 
 The brands that appear most:
 
 ```bash
-jq -r '.brand' top25.jsonl | sort | uniq -c | sort -rn
+jq -r '.brand.name // ""' top25.jsonl | sort | uniq -c | sort -rn
 ```
 
 ## Mine the reviews of a product
@@ -91,7 +91,7 @@ amz reviews B084DWG2VQ -o jsonl | jq -r 'select(.text | test("battery"; "i")) | 
 
 ```bash
 for a in B084DWG2VQ B09B8V1LZ3; do amz product "$a" -o jsonl; done \
-  | jq -r '[.asin, .price, .rating, .ratings_count, .rank] | @tsv' \
+  | jq -r '[.asin, .offer.price.value, .rating, .ratings_count, (.ranks[] | select(.overall) | .rank)] | @tsv' \
   | column -t
 ```
 
@@ -101,7 +101,7 @@ Search with refinements, then pick the highest-rated card under a price:
 
 ```bash
 amz search "mechanical keyboard" --min-rating 4 --prime -n 100 -o jsonl \
-  | jq -s 'map(select(.price < 120)) | sort_by(-.rating) | .[0:5]'
+  | jq -s 'map(select(.price.value < 120)) | sort_by(-.rating) | .[0:5]'
 ```
 
 ## Walk a brand's catalog
@@ -125,8 +125,8 @@ amz bestsellers electronics -n 100 -o url \
   | sed 's#.*/dp/##; s#/.*##' \
   | amz seed --file -
 amz crawl
-amz db query "select data->>'brand' brand, count(*) n,
-                     round(avg((data->>'price')::double), 2) avg_price
+amz db query "select data->'brand'->>'name' brand, count(*) n,
+                     round(avg((data->'offer'->'price'->>'value')::double), 2) avg_price
               from products group by brand order by n desc limit 20"
 ```
 
@@ -137,7 +137,7 @@ The same ASIN, priced in two storefronts:
 ```bash
 for m in us uk de; do
   amz price B084DWG2VQ -m "$m" -o jsonl
-done | jq -r '[.marketplace // "?", .price, .currency] | @tsv'
+done | jq -r '[.marketplace, .price.value, .price.currency] | @tsv'
 ```
 
 ## Dry-run before a big crawl

@@ -28,7 +28,7 @@ is debt: it works now and says nothing about tomorrow.
 ```
 $ amz extraction
 FAMILY   REGION  PAYLOAD  ATTR  SELECTOR  TOTAL
-product  24      0        1     1         26
+product  25      0        1     1         27
 search   17      0        4     0         21
 chart    0       1        4     4         9
 browse   3       1        6     11        21
@@ -53,10 +53,11 @@ Give the command a page and it reports the read rather than the registry.
 ```
 $ amz extraction B075F5X8BR
 product  product  https://www.amazon.com/dp/B075F5X8BR  2359626 bytes
-23 fields set, 1 missed, 267 regions Amazon named that nothing reads
+26 fields set, 2 missed, 261 regions Amazon named that nothing reads
 
 not on this page:
   similar_asins  product region "similarities" or "sims-consolidated-2_feature_div" not present on this page
+  reviews        amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only (on /product-reviews/ and /portal/customer-reviews/)
 ```
 
 A miss is a field the registry declared and the page did not carry, and the
@@ -70,13 +71,39 @@ page", and only the second one tells a caller what to do.
 | `--unread` | the named regions on the page that no field reads |
 | `--family` | limit the ladder report to one family |
 
-`--unread` is the worklist. A detail page carries 289 distinct
-`data-feature-name` regions and this reads 24 of them. The other 265 are not a
+`--unread` is the worklist. The detail page measured above carries 290 distinct
+`data-feature-name` regions and amz reads 29 of them. The other 261 are not a
 silence, they are the next version's work, and printing them is how the size of
 the gap stays honest.
 
 Add `-o json` on a page report to get the same numbers as a record, which is
 what CI reads.
+
+## The four states of a missing field
+
+`amz extraction` reports this for a page. Every record reports it for itself, in
+`envelope.missed`, and the distinction is the same one:
+
+| The record says | It means |
+| --- | --- |
+| the field is present | Amazon published it and amz read it |
+| absent, and nothing in `missed` names it | amz read the region and it was empty |
+| absent, with a `missed` entry carrying `surfaces` | the data lives on a page this fetch did not read |
+| absent, with a `missed` entry naming regions | the regions amz expects are not on this page, which usually means Amazon moved them |
+
+That third state is the one people assume is the second. A product record has no
+reviews because Amazon requires a sign-in for the corpus, and the entry naming
+`/product-reviews/` and `/portal/customer-reviews/` is what separates that from a
+product nobody has reviewed.
+
+There is a fifth case that is not absence at all: a `missed` entry with `have`
+and `total` means the field is present and incomplete. Eight reviews on a page
+that states 4,812 reads `have: 8, total: 4812`, and counting the array is then
+visibly the wrong way to get a total rather than an invisible one.
+
+Every cap amz applies reports itself this way. A browse node that links more than
+fifty related nodes keeps fifty and files a `missed` entry with the real count,
+because a silent truncation reads exactly like a complete answer.
 
 ## The capture ledger
 
@@ -90,7 +117,7 @@ fields set, fields missed, unread regions and records found.
 ```
 $ amz verify --live
 CAPTURE         STATUS  DETAIL
-product_simple  moved   267 unread regions, was 266
+product_simple  moved   261 unread regions, was 260
 seller_rated    same    14 fields, 5 records
 
 20 checked, 1 drifted, 0 worse than the ledger, 1 skipped

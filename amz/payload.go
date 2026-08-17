@@ -181,6 +181,70 @@ func ReadTwister(body []byte) (*Twister, error) {
 	return t, nil
 }
 
+// Variation projects the twister onto the record model.
+//
+// The twister is Amazon's own shape and this is ours, and the two differ in one
+// way that matters: the twister lists dimension values in a parallel slice
+// indexed by position, which is compact and unreadable, while a Sibling carries
+// a name to value map that survives a dimension being added between two crawls.
+//
+// Sibling images are left empty. The detail page ships one image block, for the
+// selected variant, and the swatch thumbnails it carries are keyed by colour
+// name rather than by ASIN, so filling Image here would mean guessing which
+// sibling a swatch belongs to. A crawl that wants sibling images fetches the
+// siblings.
+func (t *Twister) Variation() *Variation {
+	if t == nil {
+		return nil
+	}
+	v := &Variation{
+		ParentASIN: t.ParentASIN,
+		Via:        PayloadTwister,
+		Complete:   t.Complete(),
+	}
+	if t.Total > 0 {
+		v.TotalCount = intOrNil(t.Total)
+	}
+	for _, d := range t.Dimensions {
+		v.Dimensions = append(v.Dimensions, Dimension{Name: d, Values: t.Values[d]})
+	}
+	if cur, ok := t.ByASIN[t.CurrentASIN]; ok {
+		v.Current = zipDimensions(t.Dimensions, cur)
+	}
+	for _, asin := range t.ASINs() {
+		v.Siblings = append(v.Siblings, Sibling{
+			ASIN:   asin,
+			Values: zipDimensions(t.Dimensions, t.ByASIN[asin]),
+		})
+	}
+	if len(v.Dimensions) == 0 && len(v.Siblings) == 0 {
+		return nil
+	}
+	return v
+}
+
+// zipDimensions pairs the dimension names with the positional values the twister
+// stores. A short or long value slice is not an error on Amazon's side, it is a
+// listing mid-edit, so the extra entries are dropped rather than panicking.
+func zipDimensions(names, values []string) map[string]string {
+	if len(names) == 0 || len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(names))
+	for i, n := range names {
+		if i >= len(values) {
+			break
+		}
+		if values[i] != "" {
+			out[n] = values[i]
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // ASINs returns the sibling ASINs the page shipped, sorted for a stable record.
 func (t *Twister) ASINs() []string {
 	if t == nil {

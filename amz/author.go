@@ -46,11 +46,16 @@ func (c *Client) FetchAuthor(ctx context.Context, slugOrURL string) (Author, err
 	} else {
 		url = c.AuthorURL(slugOrURL)
 	}
-	body, err := c.Get(ctx, url, 24*time.Hour)
+	body, src, err := c.GetSource(ctx, url, 24*time.Hour)
 	if err != nil {
 		return Author{}, err
 	}
-	return c.parseAuthorPage(slug, url, body)
+	a, err := c.parseAuthorPage(slug, url, body)
+	if err != nil {
+		return a, err
+	}
+	c.record(ctx, &a.Envelope, src)
+	return a, nil
 }
 
 // parseAuthorPage reads an author page that has already been fetched. It stays a

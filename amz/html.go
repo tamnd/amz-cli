@@ -53,6 +53,16 @@ var currencyByGlyph = map[string]string{
 	"₹": "INR", "₩": "KRW", "₫": "VND", "₺": "TRY", "₪": "ILS", "₱": "PHP", "฿": "THB",
 }
 
+// isoIn reads an explicit three-letter currency code out of a string, and only
+// that. It is the half of currencyIn that cannot be wrong: a glyph needs a
+// marketplace to disambiguate it and a code does not.
+func isoIn(s string) string {
+	if m := isoRe.FindStringSubmatch(s); m != nil {
+		return m[2]
+	}
+	return ""
+}
+
 // currencyIn reads the currency out of a price string, preferring an explicit
 // three-letter code over a glyph because "$" is ambiguous across half a dozen
 // marketplaces and "CAD" is not.

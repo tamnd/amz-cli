@@ -67,11 +67,16 @@ func (c *Client) FetchBrand(ctx context.Context, slugOrURL string) (Brand, error
 	} else {
 		url = c.BrandURL(slugOrURL)
 	}
-	body, err := c.Get(ctx, url, 24*time.Hour)
+	body, src, err := c.GetSource(ctx, url, 24*time.Hour)
 	if err != nil {
 		return Brand{}, err
 	}
-	return parseBrandPage(slug, url, body)
+	b, err := parseBrandPage(slug, url, body)
+	if err != nil {
+		return b, err
+	}
+	c.record(ctx, &b.Envelope, src)
+	return b, nil
 }
 
 // parseBrandPage reads a storefront that has already been fetched.

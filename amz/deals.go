@@ -26,7 +26,7 @@ func (c *Client) DealsURL() string {
 // calendar and the canonical is where Amazon admits it.
 func (c *Client) FetchDeals(ctx context.Context, limit int, emit func(Deal) error) error {
 	u := c.DealsURL()
-	body, err := c.Get(ctx, u, time.Hour)
+	body, src, err := c.GetSource(ctx, u, time.Hour)
 	if err != nil {
 		return err
 	}
@@ -34,6 +34,7 @@ func (c *Client) FetchDeals(ctx context.Context, limit int, emit func(Deal) erro
 	if err != nil {
 		return err
 	}
+	c.record(ctx, &bp.Envelope, src)
 	count := 0
 	for _, sh := range bp.Shelves {
 		for _, it := range sh.Items {
@@ -47,7 +48,6 @@ func (c *Client) FetchDeals(ctx context.Context, limit int, emit func(Deal) erro
 				DiscountPct: it.DiscountPct,
 				Badge:       it.DealType,
 				EndsSoon:    it.EndsSoon,
-				Currency:    it.Currency,
 				URL:         it.URL,
 				Image:       it.Image,
 				Shelf:       it.Shelf,
@@ -55,6 +55,7 @@ func (c *Client) FetchDeals(ctx context.Context, limit int, emit func(Deal) erro
 				FetchedAt:   time.Now().UTC(),
 				Envelope:    it.Envelope,
 			}
+			d.Envelope.Inherit(bp.Envelope)
 			count++
 			if err := emit(d); err != nil {
 				return err

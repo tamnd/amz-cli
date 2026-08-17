@@ -17,7 +17,10 @@ func fixtureServer(t *testing.T) (*Client, func()) {
 	t.Helper()
 	route := func(p string) string {
 		switch {
-		case strings.HasPrefix(p, "/dp/"):
+		case strings.HasPrefix(p, "/dp/"), strings.HasPrefix(p, "/gp/aw/d/"):
+			// The mobile rendering is a different surface and the same family, so
+			// the fixture is shared and the tests assert on which surface the
+			// envelope says it read rather than on the body being different.
 			return "product.html"
 		case strings.HasPrefix(p, "/product-reviews/"):
 			return "reviews.html"
@@ -93,36 +96,84 @@ func TestFetchProduct(t *testing.T) {
 	if p.Title != "Echo Dot (4th Gen) | Smart speaker with Alexa | Charcoal" {
 		t.Errorf("title = %q", p.Title)
 	}
-	if p.Brand != "Amazon" {
-		t.Errorf("brand = %q", p.Brand)
+	if p.Brand == nil || p.Brand.Name != "Amazon" {
+		t.Errorf("brand = %+v", p.Brand)
 	}
-	if p.Price != 49.99 || p.Currency != "USD" {
-		t.Errorf("price = %v %s", p.Price, p.Currency)
+	if p.Offer == nil {
+		t.Fatal("no buy box")
 	}
-	if p.ListPrice != 59.99 {
-		t.Errorf("list_price = %v", p.ListPrice)
+	o := p.Offer
+	if o.Price.Float() != 49.99 || o.Price.Cur() != "USD" {
+		t.Errorf("price = %v %s", o.Price.Float(), o.Price.Cur())
 	}
-	if p.Rating != 4.7 || p.RatingsCount != 284512 {
-		t.Errorf("rating = %v count = %d", p.Rating, p.RatingsCount)
+	if o.ListPrice.Float() != 59.99 {
+		t.Errorf("list_price = %v", o.ListPrice.Float())
 	}
-	if p.AnsweredQs != 1204 {
-		t.Errorf("answered_qs = %d", p.AnsweredQs)
+	if o.Savings.Float() != 10.00 || o.SavingsPct == nil || *o.SavingsPct != 17 {
+		t.Errorf("savings = %v pct = %v", o.Savings.Float(), o.SavingsPct)
 	}
-	if p.Availability != "In Stock" {
-		t.Errorf("availability = %q", p.Availability)
+	if o.Coupon == nil || !strings.Contains(o.Coupon.Display, "$5.00") {
+		t.Errorf("coupon = %+v", o.Coupon)
 	}
-	if len(p.BulletPoints) != 2 {
-		t.Errorf("bullets = %v", p.BulletPoints)
+	if o.Availability != "In Stock" {
+		t.Errorf("availability = %q", o.Availability)
 	}
-	if p.Specs["Colour"] != "Charcoal" {
-		t.Errorf("specs = %v", p.Specs)
+	if o.InStock == nil || !*o.InStock {
+		t.Errorf("in_stock = %v", o.InStock)
+	}
+	if o.ShipsFrom == nil || o.ShipsFrom.Name != "Amazon.com" {
+		t.Errorf("ships_from = %+v", o.ShipsFrom)
+	}
+	if o.SoldBy == nil || o.SoldBy.ID != "ATVPDKIKX0DER" || o.SoldBy.Name != "Amazon.com" {
+		t.Errorf("sold_by = %+v", o.SoldBy)
+	}
+	if o.SoldBy != nil && !o.SoldBy.Resolved {
+		t.Error("a seller with a merchant id should be resolved")
+	}
+	if p.Rating == nil || *p.Rating != 4.7 || p.RatingsCount == nil || *p.RatingsCount != 284512 {
+		t.Errorf("rating = %v count = %v", p.Rating, p.RatingsCount)
+	}
+	if p.Questions == nil || p.Questions.TotalCount == nil || *p.Questions.TotalCount != 1204 {
+		t.Errorf("questions = %+v", p.Questions)
+	}
+	if p.Questions != nil && p.Questions.Complete {
+		t.Error("no question was loaded, so the connection cannot be complete")
+	}
+	// The histogram is 73/15/6/2/4 from five stars down, and it is stored one
+	// star first. A positional read of the rows would have reversed it and
+	// nothing else in the record would have noticed.
+	if p.Distribution == nil {
+		t.Fatal("no rating histogram")
+	}
+	if got := p.Distribution.Percent; got != [5]int{4, 2, 6, 15, 73} {
+		t.Errorf("distribution = %v", got)
+	}
+	if !p.Distribution.Derived {
+		t.Error("counts are reconstructed from percentages and must say so")
+	}
+	if p.Distribution.Count == nil || p.Distribution.Count[4] != 207693 {
+		t.Errorf("counts = %v", p.Distribution.Count)
+	}
+	if s := p.Distribution.Sum(); s != 100 {
+		t.Errorf("percentages sum to %d", s)
+	}
+	// The mean the histogram implies and the rating Amazon prints agree to
+	// within the rounding five integer percentages can hide.
+	if m := p.Distribution.Mean(); m < 4.4 || m > 4.7 {
+		t.Errorf("mean = %v, printed rating is 4.7", m)
+	}
+	if len(p.Bullets) != 2 {
+		t.Errorf("bullets = %v", p.Bullets)
+	}
+	if p.Details["Colour"] != "Charcoal" {
+		t.Errorf("details = %v", p.Details)
 	}
 	// The hero's many size variants collapse to one master; the alt rail adds a
 	// second distinct photo; the tracking pixel is dropped.
-	if len(p.Images) != 2 {
-		t.Errorf("images = %v", p.Images)
+	if len(p.ImageURLs) != 2 {
+		t.Errorf("images = %v", p.ImageURLs)
 	}
-	for _, img := range p.Images {
+	for _, img := range p.ImageURLs {
 		if strings.Contains(img, "._SL") || strings.Contains(img, "._SS") || strings.Contains(img, "._AC") {
 			t.Errorf("image not canonicalized: %q", img)
 		}
@@ -130,36 +181,69 @@ func TestFetchProduct(t *testing.T) {
 	if len(p.Videos) != 1 || !strings.HasSuffix(p.Videos[0].URL, "echo-dot-demo.mp4") {
 		t.Errorf("videos = %v", p.Videos)
 	}
-	if p.Savings != 10.00 || p.SavingsPct != 16 {
-		t.Errorf("savings = %v pct = %d", p.Savings, p.SavingsPct)
-	}
-	if !strings.Contains(p.Coupon, "$5.00") {
-		t.Errorf("coupon = %q", p.Coupon)
-	}
 	if !strings.Contains(p.BoughtPastMonth, "bought in past month") {
 		t.Errorf("bought_past_month = %q", p.BoughtPastMonth)
 	}
-	if !p.InStock {
-		t.Errorf("in_stock = %v", p.InStock)
+	if len(p.Breadcrumb) != 3 || p.Breadcrumb[0].Name != "Electronics" || p.Breadcrumb[2].Name != "Speakers" {
+		t.Errorf("breadcrumb = %+v", p.Breadcrumb)
 	}
-	if p.ShipsFrom != "Amazon.com" {
-		t.Errorf("ships_from = %q", p.ShipsFrom)
+	if p.Variation == nil || len(p.Variation.Siblings) != 2 {
+		t.Errorf("variation = %+v", p.Variation)
 	}
-	if strings.Join(p.CategoryPath, "/") != "Electronics/Smart Home/Speakers" {
-		t.Errorf("category_path = %v", p.CategoryPath)
-	}
-	if p.SellerID != "ATVPDKIKX0DER" || p.SellerName != "Amazon.com" {
-		t.Errorf("seller = %s %s", p.SellerID, p.SellerName)
-	}
-	if len(p.VariantASINs) != 2 {
-		t.Errorf("variants = %v", p.VariantASINs)
-	}
-	// Two ranks: #3 overall in Electronics and #1 in Smart Speakers.
-	if p.Rank != 3 || !strings.HasPrefix(p.RankCategory, "Electronics") {
-		t.Errorf("rank = %d %q", p.Rank, p.RankCategory)
-	}
-	if len(p.Ranks) != 2 || p.Ranks[1].Rank != 1 || p.Ranks[1].Category != "Smart Speakers" {
+	// Two ranks: #3 overall in Electronics and #1 in Smart Speakers. Only the
+	// first carries a Top 100 link, which is what marks it as the department.
+	if len(p.Ranks) != 2 || p.Ranks[0].Rank != 3 || !strings.HasPrefix(p.Ranks[0].Category, "Electronics") {
 		t.Errorf("ranks = %+v", p.Ranks)
+	}
+	if len(p.Ranks) == 2 && (p.Ranks[1].Rank != 1 || p.Ranks[1].Category != "Smart Speakers") {
+		t.Errorf("ranks = %+v", p.Ranks)
+	}
+	if len(p.Ranks) == 2 && (!p.Ranks[0].Overall || p.Ranks[1].Overall) {
+		t.Errorf("overall flags = %v %v", p.Ranks[0].Overall, p.Ranks[1].Overall)
+	}
+}
+
+// TestFlatProductMatchesTheOldShape pins the --flat projection against the
+// figures the v0.2.1 record carried for this fixture. This is the compatibility
+// promise the flag exists to make, and it is worth a test of its own because the
+// nested record is what everything else is now asserted against, so a projection
+// that quietly stopped filling a column would otherwise go unnoticed.
+func TestFlatProductMatchesTheOldShape(t *testing.T) {
+	c, stop := fixtureServer(t)
+	defer stop()
+	p, err := c.FetchProduct(context.Background(), "B084DWG2VQ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := p.Flat()
+	if f.Brand != "Amazon" || f.Price != 49.99 || f.Currency != "USD" || f.ListPrice != 59.99 {
+		t.Errorf("flat price block = %+v", f)
+	}
+	if f.Rating != 4.7 || f.RatingsCount != 284512 || f.AnsweredQs != 1204 {
+		t.Errorf("flat review block = %v %v %v", f.Rating, f.RatingsCount, f.AnsweredQs)
+	}
+	if f.Availability != "In Stock" || !f.InStock {
+		t.Errorf("flat availability = %q %v", f.Availability, f.InStock)
+	}
+	if f.SellerID != "ATVPDKIKX0DER" || f.SellerName != "Amazon.com" || f.ShipsFrom != "Amazon.com" {
+		t.Errorf("flat seller block = %+v", f)
+	}
+	if strings.Join(f.CategoryPath, "/") != "Electronics/Smart Home/Speakers" {
+		t.Errorf("flat category_path = %v", f.CategoryPath)
+	}
+	if len(f.VariantASINs) != 2 || len(f.BulletPoints) != 2 || len(f.Images) != 2 {
+		t.Errorf("flat slices = %v %v %v", f.VariantASINs, f.BulletPoints, f.Images)
+	}
+	if f.Specs["Colour"] != "Charcoal" {
+		t.Errorf("flat specs = %v", f.Specs)
+	}
+	if f.Rank != 3 || !strings.HasPrefix(f.RankCategory, "Electronics") || len(f.Ranks) != 2 {
+		t.Errorf("flat ranks = %d %q %+v", f.Rank, f.RankCategory, f.Ranks)
+	}
+	// The envelope is not a projection. It travels whole, so a flat record can
+	// still say which region every column came from.
+	if len(f.Envelope.Via) != len(p.Envelope.Via) {
+		t.Errorf("flat envelope has %d fields, nested has %d", len(f.Envelope.Via), len(p.Envelope.Via))
 	}
 }
 
@@ -177,12 +261,13 @@ func TestSearch(t *testing.T) {
 	if len(cards) != 2 {
 		t.Fatalf("got %d cards", len(cards))
 	}
-	if cards[0].ASIN != "B0D14N2QZF" || cards[0].Price != 79.99 || cards[0].ListPrice != 99.99 || cards[0].Rating != 4.6 {
+	if cards[0].ASIN != "B0D14N2QZF" || cards[0].Price.Float() != 79.99 ||
+		cards[0].ListPrice.Float() != 99.99 || cards[0].Rating == nil || *cards[0].Rating != 4.6 {
 		t.Errorf("card0 = %+v", cards[0])
 	}
 	// The card prints "(1.7K)" and labels the same link "1,739 ratings". The
 	// label wins, and reading the text instead would have given 1.
-	if cards[0].RatingsCount != 1739 {
+	if cards[0].RatingsCount == nil || *cards[0].RatingsCount != 1739 {
 		t.Errorf("card0 ratings = %d", cards[0].RatingsCount)
 	}
 	if cards[0].BoughtPastMonth != "3K+ bought in past month" || cards[0].Delivery == "" {
@@ -284,8 +369,8 @@ func TestFetchQA(t *testing.T) {
 func TestFetchOffers(t *testing.T) {
 	c, stop := fixtureServer(t)
 	defer stop()
-	var os []Offer
-	err := c.FetchOffers(context.Background(), "B084DWG2VQ", OfferQuery{}, func(o Offer) error {
+	var os []OfferListing
+	err := c.FetchOffers(context.Background(), "B084DWG2VQ", OfferQuery{}, func(o OfferListing) error {
 		os = append(os, o)
 		return nil
 	})
@@ -317,16 +402,16 @@ func TestFetchChart(t *testing.T) {
 	if len(es) != 3 {
 		t.Fatalf("got %d entries", len(es))
 	}
-	if es[0].Rank != 1 || es[0].ASIN != "B08C1W5N87" || es[0].Price != 24.99 {
+	if es[0].Rank != 1 || es[0].ASIN != "B08C1W5N87" || es[0].Price.Float() != 24.99 {
 		t.Errorf("entry0 = %+v", es[0])
 	}
-	if es[0].Title != "Fire TV Stick 4K streaming device" || es[0].Currency != "USD" {
-		t.Errorf("entry0 title/currency = %q %q", es[0].Title, es[0].Currency)
+	if es[0].Title != "Fire TV Stick 4K streaming device" || es[0].Price.Cur() != "USD" {
+		t.Errorf("entry0 title/currency = %q %q", es[0].Title, es[0].Price.Cur())
 	}
 	// The count shares its aria-label with the rating: "4.8 out of 5 stars,
 	// 90,112 ratings". Reading the label without cutting the rating out of it
 	// gives 4, which is a plausible number and a wrong one.
-	if es[2].RatingsCount != 90112 || es[2].Rating != 4.8 {
+	if deref(es[2].RatingsCount) != 90112 || deref(es[2].Rating) != 4.8 {
 		t.Errorf("entry2 rating/count = %v %d", es[2].Rating, es[2].RatingsCount)
 	}
 
@@ -478,13 +563,18 @@ func TestFetchCategory(t *testing.T) {
 		t.Errorf("canonical node = %q", cat.CanonicalNode)
 	}
 	// The page's own node is excluded from the links it makes to other nodes.
-	for _, id := range cat.ChildNodeIDs {
-		if id == "172282" {
-			t.Errorf("child nodes include the page's own node: %v", cat.ChildNodeIDs)
+	for _, r := range cat.Related {
+		if r.ID == "172282" {
+			t.Errorf("related nodes include the page's own node: %v", cat.Related)
+		}
+		// A related node is a reference and not a bare id, so it carries the
+		// word Amazon used for it and a URL that goes there.
+		if r.Kind != RefNode || !r.Resolved || r.URL == "" {
+			t.Errorf("related node is not a usable reference: %+v", r)
 		}
 	}
-	if len(cat.ChildNodeIDs) != 2 {
-		t.Errorf("children = %v", cat.ChildNodeIDs)
+	if len(cat.Related) != 2 {
+		t.Errorf("related = %v", cat.Related)
 	}
 	if len(cat.TopASINs) != 3 || cat.ItemCount != 3 {
 		t.Errorf("top_asins = %v count = %d", cat.TopASINs, cat.ItemCount)
@@ -531,7 +621,7 @@ func TestBrowseTileShapeFollowsItsIdentifier(t *testing.T) {
 		for _, it := range sh.Items {
 			if it.DealID == "" {
 				plain++
-				if it.Rating == 0 || it.Delivery == "" {
+				if it.Rating == nil || it.Delivery == "" {
 					t.Errorf("plain tile %s has no rating or delivery: %+v", it.ASIN, it)
 				}
 				if it.DealType != "" {
@@ -540,7 +630,7 @@ func TestBrowseTileShapeFollowsItsIdentifier(t *testing.T) {
 				continue
 			}
 			deals++
-			if it.Rating != 0 || it.Delivery != "" {
+			if it.Rating != nil || it.Delivery != "" {
 				t.Errorf("deal tile %s carries a rating or delivery: %+v", it.ASIN, it)
 			}
 			if it.DealType == "" || it.DiscountPct == 0 {
@@ -580,7 +670,7 @@ func TestBrowseComputesTheDiscountItWasNotGiven(t *testing.T) {
 	}
 	// The label travels with the number: a typical price is a computed average
 	// and calling it a list price would be a different claim.
-	if it.WasPriceLabel != "Typical" || it.WasPrice != 1698 {
+	if it.WasPriceLabel != "Typical" || it.WasPrice.Float() != 1698 {
 		t.Errorf("was price = %v %q", it.WasPrice, it.WasPriceLabel)
 	}
 	// The image comes from the variant map rather than the src, so the 480 pixel
@@ -917,7 +1007,7 @@ func TestFetchDeals(t *testing.T) {
 	if ds[0].ASIN != "B004UBUJZG" || ds[0].DealID != "1e7a7bea" {
 		t.Errorf("deal0 identity = %q %q", ds[0].ASIN, ds[0].DealID)
 	}
-	if ds[0].DealPrice != 239.98 || ds[0].ListPrice != 299.99 || ds[0].DiscountPct != 20 {
+	if ds[0].DealPrice.Float() != 239.98 || ds[0].ListPrice.Float() != 299.99 || ds[0].DiscountPct != 20 {
 		t.Errorf("deal0 prices = %+v", ds[0])
 	}
 	if ds[0].ListLabel != "List" || ds[0].Badge != "Limited time deal" {

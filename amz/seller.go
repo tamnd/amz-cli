@@ -85,11 +85,13 @@ func (c *Client) FetchSeller(ctx context.Context, idOrURL string) (Seller, error
 	} else {
 		url = c.SellerURL(id)
 	}
-	body, err := c.Get(ctx, url, 24*time.Hour)
+	body, src, err := c.GetSource(ctx, url, 24*time.Hour)
 	if err != nil {
 		return Seller{}, err
 	}
-	return c.parseSellerPage(id, url, body)
+	s, err := c.parseSellerPage(id, url, body)
+	c.record(ctx, &s.Envelope, src)
+	return s, err
 }
 
 func (c *Client) parseSellerPage(id, url string, body []byte) (Seller, error) {

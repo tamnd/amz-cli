@@ -51,7 +51,7 @@ func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node 
 	seen := make(map[string]bool)
 	for page := 1; page <= chartMaxPages; page++ {
 		u := c.ChartURL(kind, category, node, page)
-		body, err := c.Get(ctx, u, time.Hour)
+		body, src, err := c.GetSource(ctx, u, time.Hour)
 		if err != nil {
 			if page > 1 {
 				break
@@ -61,6 +61,10 @@ func (c *Client) FetchChart(ctx context.Context, kind ChartKind, category, node 
 		cp, err := c.parseChartPage(string(kind), category, node, u, page, body)
 		if err != nil {
 			return err
+		}
+		c.record(ctx, &cp.Envelope, src)
+		for i := range cp.Entries {
+			cp.Entries[i].Envelope.Inherit(cp.Envelope)
 		}
 		if len(cp.Entries) == 0 {
 			break
@@ -264,16 +268,12 @@ func (c *Client) readTile(cp ChartPage, r Region, fields []Field, d *Doc) (Bests
 		Rank:         int(e.Int("rank")),
 		ASIN:         asin,
 		Title:        e.Str("title"),
-		Price:        round2(e.Float("price")),
-		Currency:     e.Str("currency"),
-		Rating:       e.Float("rating"),
-		RatingsCount: e.Int("ratings_count"),
+		Price:        money(e, "price", c.mkt),
+		Rating:       f64OrNil(e.Float("rating")),
+		RatingsCount: i64OrNil(e.Int("ratings_count")),
 		Image:        upgradeImage(e.Str("image")),
 		URL:          c.ProductURL(asin),
 		FetchedAt:    time.Now().UTC(),
-	}
-	if entry.Currency == "" {
-		entry.Currency = c.mkt.Currency
 	}
 	// The landing page runs six lists side by side and each starts again at 1,
 	// so a rank without the list it belongs to is meaningless. The carousel the

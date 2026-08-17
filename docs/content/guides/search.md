@@ -19,13 +19,20 @@ them.
 
 ## The card
 
-Each result is a `Card`: `position`, `asin`, `title`, `price`, `list_price`,
-`currency`, `rating`, `ratings_count`, `image`, `badge`, `prime`,
-`bought_past_month`, `sponsored`, and `url`. `list_price` carries the
-struck-through price when the card is discounted, `badge` holds "Amazon's
-Choice" / "Best Seller" style tags, and `prime` flags Prime eligibility.
+Each result is a `Card`: `position`, `rank`, `asin`, `title`, `price`,
+`list_price`, `rating`, `ratings_count`, `image`, `badge`, `prime`,
+`bought_past_month`, `delivery`, `sponsored`, `kind`, `url`, and an `envelope`
+naming the response the row was read off. `list_price` carries the struck through
+price when the card is discounted, `badge` holds the "Amazon's Choice" and "Best
+Seller" style tags, and `prime` flags Prime eligibility.
+
+Prices are objects: each keeps the string Amazon printed beside the parse of it,
+so `price.value` is the number and `price.display` is what the page said.
+
 Sponsored placements are flagged, not hidden, so you can keep or drop them
-yourself:
+yourself. The flag is never omitted from the JSON, because an advertisement and
+an organic result are different data and a consumer that cannot tell them apart
+is holding a corrupted dataset without knowing it:
 
 ```bash
 amz search "usb c cable" -o jsonl | grep -v '"sponsored":true'

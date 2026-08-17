@@ -21,6 +21,7 @@ These persistent flags work on every command:
 | `-O`, `--out` | | write output to a file |
 | `--no-header` | | omit the table/CSV header |
 | `--template` | | Go text/template per row |
+| `--flat` | | emit the v0.2.1 flat product record (deprecated, removed in v0.4.0) |
 | `--rate` | `3s` | minimum delay between requests (floor 1s, 5s under `--no-robots`) |
 | `--retries` | `3` | retry attempts on 429/503 |
 | `--timeout` | `30s` | per-request timeout |
@@ -39,12 +40,16 @@ These persistent flags work on every command:
 
 | Command | Purpose | Notable flags |
 | --- | --- | --- |
-| `product <ASIN\|url>...` | normalize one or more detail pages | `--variants`, `--with-offers`, `--raw`, `--dry-run` |
+| `product <ASIN\|url>...` | normalize one or more detail pages | `--depth`, `--variants`, `--with-offers`, `--raw`, `--dry-run` |
 | `price <ASIN\|url>...` | just the current price | |
 | `related <ASIN>` | recommendation cards off a detail page | `--kind` |
 | `reviews <ASIN>` | stream the review corpus | `--sort`, `--stars`, `--verified`, `--with-images`, `--page` |
 | `qa <ASIN>` | question-and-answer pairs | |
 | `offers <ASIN>` | every buying option | `--condition`, `--prime` |
+
+`--depth` takes `quick`, `meta` (the default), `full`, or `deep`, and decides how
+many requests one product record is worth. `deep` prints its bill and asks for
+`--yes` above twenty. [Products](/guides/products/) has the table.
 
 ## Search and discovery
 
@@ -69,7 +74,7 @@ All five share the same shape: an optional category positional and `--node`.
 
 | Command | Purpose | Notable flags |
 | --- | --- | --- |
-| `category <node\|url>` | a browse node | `--children`, `--top` |
+| `category <node\|url>` | a browse node | `--related`, `--top` |
 | `brand <slug\|url>` | a brand storefront | `--featured` |
 | `seller <id\|url>` | a seller profile and feedback | |
 | `author <slug\|url>` | an Author Central page | `--books` |

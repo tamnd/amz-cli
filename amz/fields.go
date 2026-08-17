@@ -80,16 +80,23 @@ func productFields(base, asin string) []Field {
 		{Name: "brand_url", Level: LevelRegion, Regions: []string{"bylineInfo", "brandLogo"},
 			Rule: LinkHref(base), Why: "the brand's storefront"},
 
-		{Name: "price", Level: LevelRegion, Regions: []string{"corePrice", "corePriceDisplay_desktop"},
+		// Four spellings of the same box, all measured on 2026-08-17. One capture
+		// of six carries corePrice and corePriceDisplay_desktop, five carry
+		// corePrice_desktop, and the book carries neither: a book puts its price
+		// in gsod_singleOfferDisplay_Desktop inside desktop_buybox, because the
+		// books team ships its own buy box. Declaring one of these and calling the
+		// rest drift would report four out of six pages as broken parsers when
+		// what changed is which team rendered the page.
+		{Name: "price", Level: LevelRegion, Regions: []string{"corePrice", "corePrice_desktop", "corePriceDisplay_desktop"},
 			Rule: Price(), Why: "the price being charged, read from the accessible rendering"},
-		{Name: "price", Level: LevelRegion, Regions: []string{"apex_offerDisplay_desktop"},
-			Rule: Price(), Alt: true, Why: "the apex block's price, kept as a cross check"},
-		{Name: "currency", Level: LevelRegion, Regions: []string{"corePrice", "corePriceDisplay_desktop", "apex_offerDisplay_desktop"},
+		{Name: "price", Level: LevelRegion, Regions: []string{"apex_offerDisplay_desktop", "gsod_singleOfferDisplay_Desktop", "desktop_buybox", "apex_desktop"},
+			Rule: Price(), Alt: true, Why: "the buy box's own price, which is where a book and a device put it"},
+		{Name: "currency", Level: LevelRegion, Regions: []string{"corePrice", "corePrice_desktop", "corePriceDisplay_desktop", "apex_offerDisplay_desktop", "gsod_singleOfferDisplay_Desktop", "apex_desktop"},
 			Rule: PriceCurrency(), Why: "the currency token in the price string, which is not always the marketplace's"},
 		// corePriceDisplay_desktop comes first here and second for price, which
 		// is deliberate: corePrice holds the price being charged and nothing
 		// else, and the display block is the one that carries the strike.
-		{Name: "list_price", Level: LevelRegion, Regions: []string{"corePriceDisplay_desktop", "corePrice", "apex_offerDisplay_desktop"},
+		{Name: "list_price", Level: LevelRegion, Regions: []string{"corePriceDisplay_desktop", "corePrice_desktop", "corePrice", "apex_offerDisplay_desktop", "gsod_singleOfferDisplay_Desktop", "apex_desktop"},
 			Rule: StrikePrice(), Why: "the struck-through price"},
 		{Name: "coupon", Level: LevelRegion, Regions: []string{"couponsInBuybox", "promoPriceBlockMessage"},
 			Rule: RegionText(), Why: "a clippable coupon beside the price"},
@@ -112,6 +119,14 @@ func productFields(base, asin string) []Field {
 		{Name: "ratings_count", Level: LevelRegion, Regions: []string{"averageCustomerReviews"},
 			Rule: Count("#acrCustomerReviewText", "#acrCustomerReviewLink"),
 			Why:  "how many ratings, from the aria-label rather than the parenthesised text"},
+		// customer-reviews first, because that is where the histogram is on all
+		// six product captures. reviewsMedley and averageCustomerReviews are the
+		// older names and are kept behind it: averageCustomerReviews is the small
+		// block beside the title, which carries the rating and the count but not
+		// the five bars, and it only answers here on a layout that puts them back.
+		{Name: "distribution", Level: LevelRegion, Regions: []string{"customer-reviews", "reviewsMedley", "averageCustomerReviews"},
+			Rule: RatingHistogram(),
+			Why:  "the five bucket star histogram, read from the aria-label because it is the only place the page says which bar is which"},
 		{Name: "bought_past_month", Level: LevelRegion, Regions: []string{"socialProofingAsinFaceout", "socialProofingBadge"},
 			Rule: RegionText(), Why: "the N+ bought in past month line"},
 
