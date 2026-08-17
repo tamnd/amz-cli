@@ -129,7 +129,17 @@ func pageReport(cmd *cobra.Command, app *App, arg string, unread, showFields boo
 	}
 	url := arg
 	if !amz.IsURL(arg) {
-		url = resolveURL(c, arg)
+		// The positional argument is a page and the family is a flag, which is
+		// easy to get the wrong way round when the report you want is per family.
+		// Saying so costs a line and saves a trip to --help.
+		for _, f := range amz.Families() {
+			if string(f) == arg {
+				return exit(CodeUsage, fmt.Errorf("%q is a page family, not a page: try amz extraction --family %s", arg, arg))
+			}
+		}
+		if url, err = resolveURL(c, arg); err != nil {
+			return err
+		}
 	}
 	if app.DryRun {
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), url)
@@ -343,7 +353,9 @@ func agentMapCmd(app *App) *cobra.Command {
 			}
 			url := args[0]
 			if !amz.IsURL(url) {
-				url = resolveURL(c, url)
+				if url, err = resolveURL(c, url); err != nil {
+					return err
+				}
 			}
 			if app.DryRun {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), url)

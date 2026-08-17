@@ -25,7 +25,11 @@ func productCmd(app *App) *cobra.Command {
 			}
 			if app.DryRun {
 				for _, a := range args {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), resolveURL(c, a))
+					u, err := resolveURL(c, a)
+					if err != nil {
+						return err
+					}
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), u)
 				}
 				return nil
 			}
@@ -68,7 +72,7 @@ func productCmd(app *App) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&depth, "depth", string(amz.DepthMeta),
-		"how much to read: quick (the 374 KB mobile page), meta, full (adds the recommendation rails), deep (adds a request per variation sibling and one for the seller)")
+		"how much to read: quick (the mobile URL, which returns the same page as meta at the same cost today), meta, full (adds the recommendation rails), deep (adds a request per variation sibling and one for the seller)")
 	cmd.Flags().BoolVar(&variants, "variants", false, "also list variant ASINs as rows")
 	cmd.Flags().BoolVar(&withOffers, "with-offers", false, "also pull the offer listing")
 	return cmd
@@ -84,6 +88,15 @@ func productCmd(app *App) *cobra.Command {
 // work: it is the same request the deep read needs and it is already in the
 // cache when the answer is yes.
 func fetchAtDepth(cmd *cobra.Command, app *App, c *amz.Client, arg string, d amz.Depth) (amz.Product, error) {
+	// An argument that is not a page is checked here rather than left to the
+	// fetch, which can only answer "not found". A typo in an ASIN and a word that
+	// was never an id are different mistakes and only one of them is worth
+	// retrying, so they do not get the same sentence. The loop still carries on
+	// to the other arguments, because one bad argument in ten is not a reason to
+	// throw away nine fetches.
+	if _, err := resolveURL(c, arg); err != nil {
+		return amz.Product{}, err
+	}
 	if d != amz.DepthDeep || app.Yes {
 		return c.FetchProductDepth(cmd.Context(), arg, d)
 	}
@@ -107,7 +120,11 @@ func fetchAtDepth(cmd *cobra.Command, app *App, c *amz.Client, arg string, d amz
 func rawProduct(cmd *cobra.Command, app *App, c *amz.Client, args []string) error {
 	out := cmd.OutOrStdout()
 	for _, a := range args {
-		body, err := c.Get(cmd.Context(), resolveURL(c, a), 0)
+		u, err := resolveURL(c, a)
+		if err != nil {
+			return err
+		}
+		body, err := c.Get(cmd.Context(), u, 0)
 		if err != nil {
 			return exit(codeFor(err), err)
 		}

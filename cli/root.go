@@ -164,9 +164,18 @@ func (a *App) Client() (*amz.Client, error) {
 }
 
 // resolveURL returns the product URL for an ASIN or URL argument.
-func resolveURL(c *amz.Client, asinOrURL string) string {
+//
+// An argument the client cannot make an id or a URL out of resolves to nothing,
+// and a command that passes that on fetches the empty string and reports
+// `unsupported protocol scheme ""`, which describes the transport and not the
+// mistake. This says what was expected instead, and it is a usage error because
+// the input was never a page.
+func resolveURL(c *amz.Client, asinOrURL string) (string, error) {
 	_, url := c.ResolveProductURL(asinOrURL)
-	return url
+	if url == "" {
+		return "", exit(CodeUsage, fmt.Errorf("%q is not an ASIN, an ISBN or an amazon.com product URL", asinOrURL))
+	}
+	return url, nil
 }
 
 func marketplaceSlugs() string {

@@ -168,7 +168,7 @@ different product at a different price in every marketplace Amazon runs.
 
 | Depth | Requests | What you get |
 | --- | --- | --- |
-| `quick` | 1 | the 374 KB mobile page: identity, price, rating |
+| `quick` | 1 | the mobile URL, `/gp/aw/d/`, which returns the same page as `meta` |
 | `meta` | 1 | the full 2.2 MB detail page, rails dropped |
 | `full` | 1 | the same page with the recommendation rails kept |
 | `deep` | 2 + one per sibling | full, plus each variation sibling's own page and the seller |
@@ -176,6 +176,15 @@ different product at a different price in every marketplace Amazon runs.
 `meta` is the default. `deep` prints its bill and stops for `--yes` above twenty
 requests, because an apparel listing with 88 siblings is ninety requests for one
 record.
+
+`quick` was specified as the cheap read and is not one. Amazon gzips both
+responses, so the 374 KB it was specified at is what the mobile URL weighs on the
+wire while the 2.2 MB it was compared against is what the detail page weighs
+after decoding. Measured on 2026-08-17 for B075F5X8BR, `/gp/aw/d/` is 373,945
+bytes on the wire and 2,197,291 decoded, against 373,980 and 2,196,553 for
+`/dp/`. It is the same page for the same bytes. `quick` is kept because it is the
+only thing that reads that surface, and the saving returns if Amazon serves it a
+lighter rendering again.
 
 `--flat` emits the older single-level record with prices as bare numbers. It is
 there so a pipeline written against v0.2.1 keeps running while it is updated, it
