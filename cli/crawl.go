@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -142,53 +141,46 @@ func crawlCmd(app *App) *cobra.Command {
 	return cmd
 }
 
-func drainQueue(ctx context.Context, cmd *cobra.Command, app *App, s *amz.Store, c *amz.Client, allow map[string]bool) error {
-	workers := app.Workers
-	if workers < 1 {
-		workers = 1
-	}
+// drainQueue works the frontier one item at a time.
+//
+// It used to run app.Workers goroutines against one client. That made --rate
+// meaningless, since the throttle spaces requests but N workers each waited their
+// own turn, and it made the crawl indistinguishable from a burst. amz now reads
+// sequentially and controls its pace with one number.
+func drainQueue(ctx context.Context, cmd *cobra.Command, _ *App, s *amz.Store, c *amz.Client, allow map[string]bool) error {
+	const batchSize = 16
 	done, failed := 0, 0
-	var mu sync.Mutex
 	for {
-		batch, err := s.NextBatch(ctx, workers*2)
+		batch, err := s.NextBatch(ctx, batchSize)
 		if err != nil {
 			return exit(CodeRuntime, err)
 		}
 		if len(batch) == 0 {
 			break
 		}
-		var wg sync.WaitGroup
-		sem := make(chan struct{}, workers)
 		for _, it := range batch {
 			if len(allow) > 0 && !allow[it.Entity] {
 				_ = s.MarkStatus(ctx, it.ID, "skipped")
 				continue
 			}
-			wg.Add(1)
-			sem <- struct{}{}
-			go func(it amz.QueueItem) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				err := crawlOne(ctx, s, c, it)
-				mu.Lock()
-				if err != nil {
-					failed++
-					if errors.Is(err, amz.ErrBlocked) {
-						_ = s.MarkStatus(ctx, it.ID, "pending")
-						_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "amz: blocked, backing off 60s")
-						mu.Unlock()
-						time.Sleep(60 * time.Second)
-						return
+			if err := crawlOne(ctx, s, c, it); err != nil {
+				failed++
+				if errors.Is(err, amz.ErrBlocked) {
+					_ = s.MarkStatus(ctx, it.ID, "pending")
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "amz: blocked, backing off 60s")
+					select {
+					case <-time.After(60 * time.Second):
+					case <-ctx.Done():
+						return ctx.Err()
 					}
-					_ = s.MarkStatus(ctx, it.ID, "error")
-				} else {
-					done++
-					_ = s.MarkStatus(ctx, it.ID, "done")
+					continue
 				}
-				mu.Unlock()
-			}(it)
+				_ = s.MarkStatus(ctx, it.ID, "error")
+				continue
+			}
+			done++
+			_ = s.MarkStatus(ctx, it.ID, "done")
 		}
-		wg.Wait()
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "crawl complete: %d done, %d failed\n", done, failed)
 	if done == 0 && failed > 0 {

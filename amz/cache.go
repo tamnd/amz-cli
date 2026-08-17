@@ -3,7 +3,6 @@ package amz
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -51,5 +50,3 @@ func (c *Cache) Put(rawURL string, body []byte) error {
 
 // Dir returns the cache root.
 func (c *Cache) Dir() string { return c.dir }
-
-func requestURL(s string) (*url.URL, error) { return url.Parse(s) }

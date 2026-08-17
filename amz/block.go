@@ -7,7 +7,7 @@ import (
 
 // ErrBlocked is returned when amazon serves a CAPTCHA or robot-check wall
 // instead of the requested page. It maps to CLI exit code 5.
-var ErrBlocked = errors.New("blocked by amazon (CAPTCHA / robot check); slow down with --rate, try --cookies, switch --marketplace, or use --api")
+var ErrBlocked = errors.New("blocked by amazon (CAPTCHA / robot check); slow down with --rate, switch --marketplace, or use --api")
 
 // ErrNotFound is returned when a page is a hard 404 (e.g. an unknown ASIN).
 var ErrNotFound = errors.New("not found")

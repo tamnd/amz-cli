@@ -1,6 +1,6 @@
 ---
 title: "Crawling at scale"
-description: "Seed a queue, drain it with bounded workers, and store every record in a local DuckDB database."
+description: "Seed a queue, drain it one page at a time, and store every record in a local DuckDB database."
 weight: 60
 ---
 
@@ -56,12 +56,11 @@ amz search "mechanical keyboard" --enqueue -n 200
 ## Draining the queue
 
 `amz crawl` pulls items off the queue and writes the resulting records into the
-store, with bounded concurrency from the global `--workers`:
+store, one page at a time:
 
 ```bash
 amz crawl                  # drain everything
 amz crawl --kinds product,reviews   # only these entity kinds
-amz crawl -j 4             # four workers
 ```
 
 A crawl is polite by construction: it shares the rate limiter and retry/backoff

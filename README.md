@@ -121,25 +121,40 @@ amz db query "select data->>'brand' brand, count(*) n from products group by bra
 -m, --marketplace  marketplace slug: us|uk|de|fr|jp|ca|in|it|es|... (default us)
 -q, --quiet        suppress progress output
     --color        auto|always|never
-    --rate         min spacing between requests (default 3s)
+    --rate         min spacing between requests (default 3s, floor 1s)
     --timeout      per-request timeout (default 30s)
     --retries      retry attempts on 429/503 (default 3)
--j, --workers      concurrency for multi-ASIN and bulk commands (default 2)
     --no-cache     bypass the on-disk cache
     --dry-run      print the URL(s) that would be fetched, then stop
 ```
 
+## Who amz says it is
+
+Every request goes out as:
+
+```
+User-Agent: amz-cli/<version> (+https://github.com/tamnd/amz-cli)
+Accept: text/html
+Accept-Encoding: gzip
+```
+
+Three headers, one identity, no rotation and no disguise. `amz` reads one page
+at a time and never faster than one request per second.
+
+This is not decoration. Through v0.2.1 `amz` rotated five browser user agents
+and sent the header set that goes with them, and that combination is what earned
+it a CAPTCHA on every page. Measured over four ASINs on 2026-08-17: the browser
+identity failed 4 of 4, this one was served 4 of 4.
+
+`amz` also carries no borrowed session. `--cookies` is gone along with the code
+that loaded it. Nothing `amz` reads needs a login, and the surfaces that do are
+reported rather than reached.
+
 ## Access tiers
 
-`amz` reads three tiers, selected per run:
+`amz` reads two tiers, selected per run:
 
 **Public HTML** (the default) reads what a logged-out browser sees. No setup.
-Most commands work here; product pages and search can be gated on residential
-IPs from high-traffic datacenter ranges.
-
-**Cookied** (`--cookies <file>`) lends a signed-in browser session. Pass a
-Netscape-format cookie file exported from your browser to reach pages that
-require a login context.
 
 **PA-API** (`--api`) calls the official Amazon Product Advertising API 5.0,
 signed locally with SigV4. Needs credentials (`amz config set-api`). Returns
@@ -153,7 +168,7 @@ the same output schema as the other tiers, so scripts work unchanged.
 2  usage error
 3  no results
 4  partial results
-5  blocked (bot-check or CAPTCHA; try --cookies, --rate, or --api)
+5  blocked (bot-check or CAPTCHA; try --rate, --marketplace, or --api)
 ```
 
 ## Development
