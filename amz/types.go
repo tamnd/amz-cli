@@ -72,6 +72,16 @@ type Product struct {
 	Distribution *Distribution `json:"distribution,omitempty"`
 	Reviews      *Conn         `json:"reviews,omitempty"`
 	Questions    *Conn         `json:"questions,omitempty"`
+	// ReviewSample is the handful of full reviews the detail page carries in
+	// its medley. It is named a sample and not a list because that is what it
+	// is: the corpus behind it is at /product-reviews/, which redirects to a
+	// sign-in, so these are the only reviews amz can read and there is no
+	// paging that gets more. Reviews above says how many exist.
+	ReviewSample []Review `json:"review_sample,omitempty"`
+	// QASample is the question and answer pairs the ask region carries inline,
+	// which on most products is none. Questions above carries the count Amazon
+	// states, and the two disagreeing is the normal case rather than a fault.
+	QASample []QA `json:"qa_sample,omitempty"`
 
 	// where it sits
 	Breadcrumb []Ref  `json:"breadcrumb,omitempty"`

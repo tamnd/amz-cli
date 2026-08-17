@@ -44,9 +44,10 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz price <ASIN\|url>...` | current price only |
 | `amz related <ASIN>` | recommendation cards from a product page |
 | `amz search <query>` | catalog search result cards |
-| `amz reviews <ASIN>` | the full review corpus; `--stars`, `--sort` |
-| `amz qa <ASIN>` | customer question-and-answer pairs |
-| `amz offers <ASIN>` | every buying option (seller, condition, price) |
+| `amz reviews <ASIN>` | the reviews the detail page carries, with the histogram; `--stars`, `--sort` |
+| `amz qa <ASIN>` | the answered question count, and the pairs when the page carries them |
+| `amz offers <ASIN>` | the buy box winner and the count of the offers behind it |
+| `amz variants <ASIN>` | the variation matrix, one row per sibling; `--resolve` |
 | `amz bestsellers [category]` | the live top-100 chart |
 | `amz new-releases [category]` | newest releases in a category |
 | `amz movers [category]` | biggest 24-hour rank movers |
@@ -68,6 +69,8 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz extraction [asin\|url]` | how each field is read, and what is on the page that nothing reads |
 | `amz verify [--live] [--strict]` | compare pages against what they yielded when they were captured |
 | `amz agent-map <asin\|url>` | Amazon's own description of a page, printed verbatim |
+| `amz why [topic]` | why a command returns less than you expected, measured and dated |
+| `amz doctor` | what this client sends, what the two key surfaces answer, what is in the store |
 | `amz info` | show access tier, marketplace, and config summary |
 | `amz config` | view and manage configuration and PA-API credentials |
 | `amz cache path\|info\|clear` | inspect or clear the on-disk page cache |
@@ -78,12 +81,48 @@ Full reference and guides live at [amz-cli.tamnd.com](https://amz-cli.tamnd.com)
 
 ```bash
 amz product B084DWG2VQ                     # one product, fully normalized
+amz product B084DWG2VQ --light             # the smallest useful read
+amz variants B084DWG2VQ                    # every sibling in the variation family
+amz why reviews                            # why there are thirteen and not four thousand
+amz doctor                                 # check the client, the network and the store
 amz search "mechanical keyboard" -n 20     # catalog search results
 amz reviews B084DWG2VQ --stars 1           # the one-star reviews
-amz offers B084DWG2VQ                      # every buying option
+amz offers B084DWG2VQ                      # the buy box and how many offers sit behind it
 amz bestsellers electronics                # the live top-100 chart
 amz category 172282                        # the Electronics browse node
 amz product B084DWG2VQ -m uk              # any of 16 marketplaces
+```
+
+One product on a terminal prints as a card rather than as a row of truncated
+cells. The histogram is drawn because Amazon publishes it, and the block at the
+bottom is generated from the record's own account of what it could not read:
+
+```
+Echo Dot (4th Gen) | Smart speaker with Alexa | Charcoal
+  B075F5X8BR  ·  amazon.com  ·  read 2026-08-17 07:15
+
+  $49.99                        was $59.99, save 17%
+  In Stock                      ships from and sold by Amazon.com
+  4.7 out of 5                  284,512 ratings
+
+  5 ★ ████████████████████████████████████  73%
+  4 ★ ███████                               15%
+  3 ★ ██                                     6%
+  2 ★ █                                      2%
+  1 ★ █                                      4%
+                                counts derived from integer percentages
+
+  Brand      Amazon
+  Rank       #3 in Electronics · #1 in Smart Speakers
+  Variants   2 of 2 shown  ·  Color
+  Category   Electronics › Smart Home › Speakers
+
+  not read
+    other_offers 1 of 22. the all-offers panel is built by javascript and states
+                 only its own count on the page
+                 run `amz why offers` for the detail
+    reviews      13 of 284,512. amazon requires a sign-in for the review corpus
+                 run `amz why reviews` for the detail
 ```
 
 Records come out as a table (the default on a terminal), JSON, JSONL, CSV, TSV,
@@ -123,6 +162,7 @@ amz db query "select data->'brand'->>'name' brand, count(*) n from products grou
 -n, --limit        max records (0 = unlimited)
 -m, --marketplace  marketplace slug: us|uk|de|fr|jp|ca|in|it|es|... (default us)
 -q, --quiet        suppress progress output
+-v, --verbose      more detail; -vv adds where each field came from
     --color        auto|always|never
     --rate         min spacing between requests (default 3s, floor 1s)
     --timeout      per-request timeout (default 30s)
@@ -339,10 +379,16 @@ the same output schema as the other tiers, so scripts work unchanged.
 2  usage error
 3  no results
 4  partial results
-5  blocked (bot-check or CAPTCHA; try --rate, --marketplace, or --api)
-7  disallowed by robots.txt (the rule is named in the message)
-8  robots.txt could not be fetched, so nothing was read
+5  blocked (a CAPTCHA came back; `amz why blocked`)
+6  a bot interstitial was still standing after the backoff; `amz why captcha`
+7  disallowed by robots.txt (the rule is named in the message); `amz why robots`
+8  robots.txt could not be fetched, so nothing was read; `amz why robots`
+9  the surface needs a signed-in session, which amz does not have; `amz why policy`
 ```
+
+Every failure names the URL and the rule or the redirect that produced it, and
+the codes above that mean Amazon said no also name the `amz why` topic that
+explains what happened and what to do about it.
 
 ## Development
 

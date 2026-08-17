@@ -111,7 +111,10 @@ type App struct {
 	Timeout     time.Duration
 	UseAPI      bool
 	Quiet       bool
-	Verbose     bool
+	// Verbose counts the -v flags. One is the usual "tell me more" and two
+	// asks the human product card to say where every field came from, which
+	// is the provenance the envelope carries and nothing else prints.
+	Verbose     int
 	Color       string
 	NoCache     bool
 	Refresh     bool
@@ -316,7 +319,7 @@ func Root() *cobra.Command {
 	_ = pf.MarkDeprecated("workers", "amz reads one page at a time; use --rate to control pace")
 	pf.BoolVar(&app.UseAPI, "api", false, "use the official PA-API path (needs credentials)")
 	pf.BoolVarP(&app.Quiet, "quiet", "q", false, "quiet output")
-	pf.BoolVarP(&app.Verbose, "verbose", "v", false, "verbose output")
+	pf.CountVarP(&app.Verbose, "verbose", "v", "verbose output. -vv adds where each field came from")
 	pf.StringVar(&app.Color, "color", "auto", "color: auto|always|never")
 	pf.BoolVar(&app.NoCache, "no-cache", false, "bypass the on-disk cache")
 	pf.BoolVar(&app.Refresh, "refresh", false, "ignore cached copy but repopulate it")
@@ -340,6 +343,7 @@ func Root() *cobra.Command {
 		reviewsCmd(app),
 		qaCmd(app),
 		offersCmd(app),
+		variantsCmd(app),
 		chartCmd(app, amz.ChartBestsellers, "bestsellers", "Top sellers in the store or a category"),
 		chartCmd(app, amz.ChartNewReleases, "new-releases", "Newest releases in the store or a category"),
 		chartCmd(app, amz.ChartMovers, "movers", "Biggest 24h rank movers"),
@@ -365,6 +369,28 @@ func Root() *cobra.Command {
 		extractionCmd(app),
 		verifyCmd(app),
 		agentMapCmd(app),
+		whyCmd(app),
+		doctorCmd(app),
 	)
+	annotateErrors(root)
 	return root
+}
+
+// annotateErrors wraps every command in the tree so a failure carries its exit
+// code and the topic that explains it.
+//
+// One walk here rather than a call at each return, because there are several
+// hundred returns in this package and the one that gets forgotten is the one a
+// user hits. The wrapper is a no-op for the codes that explain themselves.
+func annotateErrors(cmd *cobra.Command) {
+	for _, c := range cmd.Commands() {
+		annotateErrors(c)
+		if c.RunE == nil {
+			continue
+		}
+		run := c.RunE
+		c.RunE = func(cmd *cobra.Command, args []string) error {
+			return explain(run(cmd, args))
+		}
+	}
 }

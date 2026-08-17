@@ -90,10 +90,26 @@ func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
 	if err != nil {
 		return nil
 	}
+	return c.readReviews(asin, pageURL, doc.Selection)
+}
+
+// readReviews reads every review block under root.
+//
+// It is separate from parseReviews because the same markup appears on two
+// pages and only one of them can still be fetched. The review corpus at
+// /product-reviews/ redirects to a sign-in, and the detail page carries the
+// most recent handful in the reviews medley, so this is the only path that
+// returns anything today. See ReviewsOnPage.
+//
+// Amazon spells the hooks differently on the two pages. The corpus page writes
+// review-title and review-body, the medley writes reviewTitle and reviewText,
+// and both spellings are listed here rather than picked between, because a
+// parser that guesses which page it is on is one redesign from reading nothing.
+func (c *Client) readReviews(asin, pageURL string, root *goquery.Selection) []Review {
 	var out []Review
-	doc.Find(`div[data-hook="review"]`).Each(func(_ int, s *goquery.Selection) {
+	root.Find(`div[data-hook="review"]`).Each(func(_ int, s *goquery.Selection) {
 		r := Review{Marketplace: c.mkt.Slug, ASIN: asin, URL: pageURL, FetchedAt: time.Now().UTC()}
-		r.ReviewID, _ = s.Attr("id")
+		r.ReviewID = reviewIDOf(s)
 		r.ReviewerName = collapseSpace(s.Find(`span.a-profile-name`).First().Text())
 		if href, ok := s.Find(`a.a-profile`).First().Attr("href"); ok {
 			if m := reviewerIDRe.FindStringSubmatch(href); m != nil {
@@ -101,8 +117,8 @@ func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
 			}
 		}
 		r.Rating = int(parseRating(s.Find(`[data-hook="review-star-rating"] span, [data-hook="cmps-review-star-rating"] span`).First().Text()))
-		r.Title = collapseSpace(s.Find(`[data-hook="review-title"] span:last-child, [data-hook="review-title"]`).Last().Text())
-		r.Text = collapseSpace(s.Find(`[data-hook="review-body"] span`).First().Text())
+		r.Title = collapseSpace(s.Find(`[data-hook="review-title"] span:last-child, [data-hook="review-title"], [data-hook="reviewTitle"]`).Last().Text())
+		r.Text = collapseSpace(s.Find(`[data-hook="review-body"] span, [data-hook="reviewRichContentContainer"], [data-hook="reviewText"]`).First().Text())
 		dateLine := s.Find(`[data-hook="review-date"]`).First().Text()
 		var raw string
 		r.Country, raw = splitReviewDate(dateLine)
@@ -132,6 +148,33 @@ func (c *Client) parseReviews(asin, pageURL string, body []byte) []Review {
 		out = append(out, r)
 	})
 	return out
+}
+
+// reviewIDOf reads the review id off a review block.
+//
+// The id attribute carries it on both pages, but the medley also writes it into
+// a slot id, and on some renderings the id attribute is the slot spelling rather
+// than the bare one. Trimming the prefix means the same review gets the same id
+// whichever page it was read from, which is what the reviews table is keyed on.
+//
+// There are two prefixes because a medley holds two strips. The reviews written
+// in the marketplace being read are customer_review-R143X21KH8JWEO, and the ones
+// translated in from other Amazon storefronts are customer_review_foreign-, five
+// of the thirteen on B075F5X8BR. They are ordinary reviews with a country other
+// than this one, the Country field carries which, and the wider prefix has to be
+// tried first or the trim leaves _foreign- on the front of the id.
+func reviewIDOf(s *goquery.Selection) string {
+	id, _ := s.Attr("id")
+	if id == "" {
+		id, _ = s.Attr("data-csa-c-slot-id")
+	}
+	id = collapseSpace(id)
+	for _, prefix := range []string{"customer_review_foreign-", "customer_review-"} {
+		if strings.HasPrefix(id, prefix) {
+			return strings.TrimPrefix(id, prefix)
+		}
+	}
+	return id
 }
 
 func splitReviewDate(s string) (country, date string) {

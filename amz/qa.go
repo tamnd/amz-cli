@@ -41,8 +41,23 @@ func (c *Client) FetchQA(ctx context.Context, asin string, emit func(QA) error) 
 	if !hasQASection(doc) {
 		return ErrNoQA
 	}
-	var perr error
-	doc.Find(`.askTeaserQuestions > div, div[id^="question-"]`).EachWithBreak(func(_ int, s *goquery.Selection) bool {
+	for _, qa := range c.readQA(asin, u, doc.Selection) {
+		if err := emit(qa); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// readQA reads every question and answer pair under root.
+//
+// The same markup appears in the ask region of a detail page and on the
+// standalone Q&A page, and only the first can still be fetched: /ask/questions/
+// redirects to a sign-in. So this reads from a selection rather than a body, and
+// the detail page passes it the region it already has.
+func (c *Client) readQA(asin, pageURL string, root *goquery.Selection) []QA {
+	var out []QA
+	root.Find(`.askTeaserQuestions > div, div[id^="question-"]`).Each(func(_ int, s *goquery.Selection) {
 		spans := s.Find(".a-fixed-left-grid-col.a-col-right span")
 		q := collapseSpace(s.Find(`a[href*="/ask/questions/"], .askQuestionText`).First().Text())
 		if q == "" && spans.Length() > 0 {
@@ -53,26 +68,22 @@ func (c *Client) FetchQA(ctx context.Context, asin string, emit func(QA) error) 
 			ans = collapseSpace(spans.Eq(1).Text())
 		}
 		if q == "" {
-			return true
+			return
 		}
 		// The marketplace is in the hash because the id is the primary key and
 		// Amazon publishes the same question and answer on several storefronts.
 		// Without it the .co.uk pair overwrites the .com one.
 		sum := md5.Sum([]byte(c.mkt.Slug + "|" + asin + "|" + q + "|" + ans))
-		qa := QA{
+		out = append(out, QA{
 			QAID:        hex.EncodeToString(sum[:]),
 			Marketplace: c.mkt.Slug,
 			ASIN:        asin,
 			Question:    strings.TrimSpace(q),
 			Answer:      strings.TrimSpace(ans),
-			URL:         u,
+			URL:         pageURL,
 			FetchedAt:   time.Now().UTC(),
-		}
-		if err := emit(qa); err != nil {
-			perr = err
-			return false
-		}
-		return true
+		})
 	})
-	return perr
+	return out
 }
+

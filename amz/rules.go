@@ -682,6 +682,33 @@ func SpecRows() FieldRule {
 	}
 }
 
+// parenCountRe is a count Amazon wrote inside brackets: "New & Used (22) from".
+var parenCountRe = regexp.MustCompile(`\((\d[\d.,\s]*)\)`)
+
+// ParenCount reads a count Amazon put in brackets rather than on its own.
+//
+// The all-offers link is the case this exists for. Its text is "New & Used (22)
+// from $9.21", which carries three numbers, and only the bracketed one is a
+// count. Count would read the price, and a product reporting nine other offers
+// when the page says twenty two is wrong in a way that looks plausible.
+func ParenCount(sels ...string) FieldRule {
+	return func(_ *Extractor, r Region) (any, bool) {
+		for _, sel := range sels {
+			var n int64
+			r.Find(sel).EachWithBreak(func(_ int, s *goquery.Selection) bool {
+				if m := parenCountRe.FindStringSubmatch(nodeText(s)); m != nil {
+					n = parseCount(m[1])
+				}
+				return n == 0
+			})
+			if n > 0 {
+				return n, true
+			}
+		}
+		return int64(0), false
+	}
+}
+
 // Present reports whether the region contains a match, which is how a badge
 // becomes a boolean.
 func Present(sel string) FieldRule {

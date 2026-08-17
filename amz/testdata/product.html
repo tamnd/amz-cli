@@ -44,6 +44,35 @@
         <tr><td><a aria-label="2 percent of reviews have 2 stars">2 star</a></td><td>2%</td></tr>
         <tr><td><a aria-label="4 percent of reviews have 1 stars">1 star</a></td><td>4%</td></tr>
       </table>
+      <!--
+        The medley below is the only place reviews can still be read, and it
+        spells its hooks differently from the corpus page in reviews.html:
+        reviewTitle rather than review-title, reviewText rather than
+        review-body, and the id repeated into data-csa-c-slot-id with a
+        customer_review- prefix. The spellings are copied from
+        captures/product_simple.html.gz, measured 2026-08-17. A parser taught
+        only the corpus spellings reads the ids and the ratings here and returns
+        every review with an empty title and an empty body, which looks like
+        data rather than like a bug, so both fixtures exist.
+      -->
+      <div id="R7AJZQ8YRC1LZ" data-csa-c-slot-id="customer_review-R7AJZQ8YRC1LZ" data-hook="review" class="a-section">
+        <a class="a-profile" href="/gp/profile/amzn1.account.AEXAMPLE333"><div class="a-profile-content"><span class="a-profile-name">Priya Raman</span></div></a>
+        <i data-hook="review-star-rating" class="a-icon a-star-5"><span class="a-icon-alt">5 out of 5 stars</span></i>
+        <a href="/portal/customer-reviews/srp/-/R7AJZQ8YRC1LZ"><h5 data-hook="reviewTitle">Better than the model it replaced</h5></a>
+        <div data-hook="review-by-line"><span data-hook="review-date">Reviewed in the United States on July 6, 2026</span></div>
+        <a data-hook="format-strip"><span>Colour: Charcoal</span><span>Size: 8 GB</span></a>
+        <div data-hook="reviewText"><span>Set up in under a minute and the far field microphones hear me from the next room.</span></div>
+        <span data-hook="avp-badge">Verified Purchase</span>
+        <span data-hook="helpful-vote-statement">27 people found this helpful</span>
+      </div>
+      <div id="R4KQ2ZP9LMX8V" data-csa-c-slot-id="customer_review-R4KQ2ZP9LMX8V" data-hook="review" class="a-section">
+        <a class="a-profile" href="/gp/profile/amzn1.account.AEXAMPLE444"><div class="a-profile-content"><span class="a-profile-name">Marcus Bell</span></div></a>
+        <i data-hook="review-star-rating" class="a-icon a-star-2"><span class="a-icon-alt">2 out of 5 stars</span></i>
+        <a href="/portal/customer-reviews/srp/-/R4KQ2ZP9LMX8V"><h5 data-hook="reviewTitle">Drops the connection every few days</h5></a>
+        <div data-hook="review-by-line"><span data-hook="review-date">Reviewed in the United States on May 19, 2026</span></div>
+        <div data-hook="reviewText"><span>Sound is fine but it needs a power cycle about twice a week to find the network again.</span></div>
+        <span data-hook="helpful-vote-statement">4 people found this helpful</span>
+      </div>
     </div>
 
     <div id="socialProofingAsinFaceout_feature_div" class="celwidget" data-feature-name="socialProofingAsinFaceout">
@@ -84,6 +113,20 @@
       <div class="offer-display-feature-text a-size-small" offer-display-feature-name="desktop-fulfiller-info">
         <span class="a-size-small offer-display-feature-text-message">Amazon.com</span>
       </div>
+    </div>
+
+    <!--
+      The all-offers ingress, copied from captures/product_book.html.gz. Its
+      text carries three numbers and only the bracketed one is a count, which is
+      why the page count is read by ParenCount and not by Count: a rule that
+      took the first number here would report nine other offers where the page
+      says twenty two.
+    -->
+    <div id="buybox-see-all-buying-choices" class="celwidget">
+      <a id="aod-ingress-link" class="a-link-normal" href="/gp/offer-listing/B084DWG2VQ/ref=dp_olp_ALL_mbc?ie=UTF8&amp;condition=ALL" role="button">
+        <span class="a-color-base">New &amp; Used (22) from</span>
+        <span class="a-price"><span class="a-offscreen">$9.21</span><span aria-hidden="true">$9<sup>21</sup></span></span>
+      </a>
     </div>
 
     <div id="returnsInfoFeature_feature_div" class="celwidget" data-feature-name="returnsInfoFeature">

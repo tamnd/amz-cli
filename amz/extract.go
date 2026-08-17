@@ -179,28 +179,34 @@ func (e *Extractor) miss(field, why string) {
 	e.missed = append(e.missed, Miss{Field: field, Why: why})
 }
 
-// missSurface records a field whose data lives on a surface this fetch did not
-// read, naming the surfaces so the entry is checkable rather than a shrug.
-//
-// This is the second of the four states and the one a consumer is most likely to
-// mistake for the first. A record with no reviews because the corpus is behind a
-// sign-in and a record with no reviews because the product has none are the same
-// JSON, and the only thing that tells them apart is this entry.
-func (e *Extractor) missSurface(field, why string, surfaces []string, fix string) {
-	e.missed = append(e.missed, Miss{Field: field, Why: why, Surfaces: surfaces, Fix: fix})
-}
-
-// missPartial records a field that was found and is incomplete: eight reviews on
-// a page that says 4,812, a dozen variation siblings on a listing that claims
+// missPartial records a field that was found and is incomplete: thirteen reviews
+// on a page that says 4,812, a dozen variation siblings on a listing that claims
 // hundreds.
 //
-// This is the third of the four states of a missing field and the one most
-// likely to be read as the first. A consumer who counts len() on a partial slice
-// and publishes it as a total has produced a wrong number with nothing to warn
-// them, so the entry carries both figures and the command that would close the
-// gap when there is one.
+// This is the state most likely to be read as the first. A consumer who counts
+// len() on a partial slice and publishes it as a total has produced a wrong
+// number with nothing to warn them, so the entry carries both figures and the
+// command that would close the gap when there is one.
 func (e *Extractor) missPartial(field string, have int, total int64, why, fix string) {
 	e.missed = append(e.missed, Miss{Field: field, Why: why, Have: have, Total: total, Fix: fix})
+}
+
+// missPartialSurface is a partial whose remainder lives somewhere nameable.
+//
+// The reviews medley is the case it exists for: thirteen of 4,812 were read, the
+// other 4,799 are at two URLs, and both of those redirect to a sign-in. Naming
+// the surfaces turns "we got thirteen" into a claim somebody can check, and the
+// fix names the amz why topic that carries the measurement behind it.
+//
+// It carries the absent and not read state too, as a partial whose have is zero,
+// because that is the same statement with a smaller number in it. That state is
+// the one a consumer is most likely to mistake for a plain absence: a record
+// with no reviews because the corpus is behind a sign-in and a record with no
+// reviews because the product has none are otherwise the same JSON.
+func (e *Extractor) missPartialSurface(field string, have int, total int64, why string, surfaces []string, fix string) {
+	e.missed = append(e.missed, Miss{
+		Field: field, Why: why, Have: have, Total: total, Surfaces: surfaces, Fix: fix,
+	})
 }
 
 // liveMisses drops the entries for fields that another source went on to fill.

@@ -247,6 +247,25 @@ func isStructured(v any) bool {
 	return false
 }
 
+// Detail renders a record as a block of text rather than a table row, and only
+// when the run resolved to a table with no field selection and no template.
+//
+// Every other format is a data format, and a card is not data: a pipeline that
+// asked for JSONL, or for three named fields, or for its own template, asked for
+// something a human block cannot answer. Those all fall through to Emit, which
+// is why this takes the row as well as the drawing.
+func (o *Output) Detail(r Row, draw func(io.Writer)) error {
+	if o.format != FormatTable || o.tmpl != nil || len(o.fields) > 0 {
+		return o.Emit(r)
+	}
+	o.count++
+	if o.count > 1 {
+		_, _ = o.w.WriteString("\n")
+	}
+	draw(o.w)
+	return nil
+}
+
 // Count returns how many rows were emitted.
 func (o *Output) Count() int { return o.count }
 

@@ -27,6 +27,30 @@ func f64OrNil(v float64) *float64 {
 	return &v
 }
 
+// firstCount returns the first count that was actually stated.
+//
+// A product page states a ratings count and a reviews count and they are
+// different numbers, because rating something and writing about it are
+// different acts. Either is a defensible denominator for "how many of them did
+// we read", and the reviews count is the right one when the page gives it.
+func firstCount(counts ...*int64) *int64 {
+	for _, c := range counts {
+		if c != nil {
+			return c
+		}
+	}
+	return nil
+}
+
+// countOf reads a count that may not have been stated, for the places that need
+// a number and treat "not stated" as zero rather than as a distinct case.
+func countOf(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
 func i64OrNil(v int64) *int64 {
 	if v == 0 {
 		return nil
