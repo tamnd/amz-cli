@@ -1,0 +1,45 @@
+# The golden capture ledger.
+#
+# One line per capture in this directory, recording what the parser made of it on
+# the day it was taken: fields set, fields the registry declared and did not
+# fill, regions Amazon named that no field reads, and repeated records found.
+#
+# These numbers move when amazon.com moves. That is the point. A drop in "set" or
+# a rise in "unread" is a page that changed under a parser that did not, and it
+# is meant to be read and understood rather than regenerated. When the change is
+# real and accepted, rewrite this file with:
+#
+#     go test ./amz/ -run TestCaptureLedger -update
+#
+# Every capture was taken on 2026-08-17 with no cookie jar and the User-Agent amz
+# sends, so none of them carries an account, a cart or a personalized layout. The
+# per request identifiers Amazon prints into its own ref tags were replaced with
+# zeros before the files were stored, and the sidecars keep the response headers
+# minus anything that names one request.
+#
+# The captcha and interstitial bodies are not here. They are 3,781 and 2,264
+# bytes, they are the only thing on the page, and they live as constants in
+# classify_test.go where the classifier tests read them.
+#
+name                   op             family       bytes   set missed unread records  stop
+author_store           author         store      1367925     9      1      0      70  
+brand_store            brand          store       520435     6      1      0       8  
+browse_node            category       browse      917459     4      0      2      59  
+browse_node_child      category       browse      848313     4      0      2      91  
+chart_bestsellers      bestsellers    chart       427983     4      1      3      50  
+chart_movers           movers         chart       314005     3      1      3       0  
+chart_new_releases     new-releases   chart       426649     4      1      3      50  
+deals                  deals          browse      768368     1      0      4      11  
+product_apparel        product        product    2218600    16     10    152       0  
+product_book           product        product    2168877    11     13    108       0  
+product_coupon         product        product    1552245     9     15    274       0  
+product_no_variants    product        product    1825866    15     10    152       0  
+product_out_of_stock   product        product    2260659    13     10    154       0  
+product_simple         product        product    2379997    23      1    266       0  
+search_deep            search         search     1025013     5      0     17       6  
+search_filtered        search         search     1580893     8      0     17      30  
+search_page1           search         search     1299326     8      0     16      16  
+search_sorted          search         search      900168     8      0     15      18  
+seller_amazon          seller         seller      295932     8      6      0       0  
+seller_rated           seller         seller      334131    14      0      0       5  
+soft_404               product        product       2296     0      0      0       0  not_found

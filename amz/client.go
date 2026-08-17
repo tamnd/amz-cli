@@ -3,6 +3,7 @@ package amz
 import (
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,6 +38,9 @@ type Client struct {
 	// forceRobots makes the gate apply to a non-marketplace base URL. Set only
 	// by tests, via export_test.go.
 	forceRobots bool
+	// waitFn replaces the backoff sleep. Set only by tests, via export_test.go,
+	// because the interstitial ladder is measured in minutes.
+	waitFn func(context.Context, time.Duration) error
 
 	mu   sync.Mutex
 	next time.Time
@@ -138,6 +142,29 @@ func (c *Client) Get(ctx context.Context, rawURL string, ttl time.Duration) ([]b
 		_ = c.cache.Put(rawURL, body)
 	}
 	return body, nil
+}
+
+// ErrNotCached means a page was asked for without permission to fetch it and is
+// not on disk.
+var ErrNotCached = errors.New("not in the cache")
+
+// Cached returns a page only if it is already stored, and never reaches the
+// network.
+//
+// This exists for `amz verify`, which compares today's read against the ledger
+// and should not fetch twenty one pages from a site that did not ask to be
+// measured just because somebody was curious. Age is not checked: a stale copy
+// is exactly what a drift report wants to read, and the ledger's own date is
+// what the comparison is against.
+func (c *Client) Cached(rawURL string) ([]byte, error) {
+	if c.cache == nil || c.noCache {
+		return nil, ErrNotCached
+	}
+	b, ok := c.cache.Get(rawURL, 0)
+	if !ok {
+		return nil, ErrNotCached
+	}
+	return b, nil
 }
 
 // Robots returns the parsed robots.txt for the host this client reads, fetching
@@ -252,15 +279,25 @@ func (c *Client) noRobotsBanner() {
 	})
 }
 
+// interstitialBackoff is how long amz waits out an Akamai bm-verify challenge.
+//
+// The challenge is transient and the same URL serves normally after a pause, so
+// the right response is to wait rather than to retry hard or to change identity.
+// Three waits and then a stop: a client still being challenged after four and a
+// quarter minutes is being told something, and the message says how long it
+// waited so the reader can judge that for themselves.
+var interstitialBackoff = []time.Duration{60 * time.Second, 120 * time.Second, 240 * time.Second}
+
 func (c *Client) fetch(ctx context.Context, rawURL string) ([]byte, error) {
 	backoff := []time.Duration{0, 10 * time.Second, 40 * time.Second, 90 * time.Second}
 	var lastErr error
+	interstitials := 0
+	var waited time.Duration
+
 	for attempt := 0; attempt <= c.retries; attempt++ {
 		if d := backoff[min(attempt, len(backoff)-1)]; d > 0 {
-			select {
-			case <-time.After(d):
-			case <-ctx.Done():
-				return nil, ctx.Err()
+			if err := c.wait(ctx, d); err != nil {
+				return nil, err
 			}
 		}
 		c.throttle()
@@ -275,22 +312,53 @@ func (c *Client) fetch(ctx context.Context, rawURL string) ([]byte, error) {
 			continue
 		}
 		body, rerr := readBody(resp)
+		final := resp.Request.URL.String()
+		status := resp.StatusCode
 		_ = resp.Body.Close()
 		if rerr != nil {
 			lastErr = rerr
 			continue
 		}
-		if DetectBlocked(body) {
+
+		switch kind := Classify(body, status, final); kind {
+		case PageCaptcha:
+			// No retry. Hammering a CAPTCHA is how a polite client becomes an
+			// impolite one without anybody deciding to.
 			return nil, ErrBlocked
-		}
-		switch {
-		case resp.StatusCode == http.StatusNotFound:
+
+		case PageSignIn:
+			return nil, &SignInError{URL: rawURL, Redirect: final}
+
+		case PageNotFound:
 			return nil, ErrNotFound
-		case resp.StatusCode == 429 || resp.StatusCode == 503 || resp.StatusCode >= 500:
-			lastErr = fmt.Errorf("http %d for %s", resp.StatusCode, rawURL)
+
+		case PageInterstitial:
+			if interstitials >= len(interstitialBackoff) {
+				return nil, fmt.Errorf("%w after waiting %s for %s", ErrInterstitial, waited.Round(time.Second), rawURL)
+			}
+			d := interstitialBackoff[interstitials]
+			interstitials++
+			c.note(fmt.Sprintf("amz: interstitial challenge on %s, waiting %s", rawURL, d))
+			if err := c.wait(ctx, d); err != nil {
+				return nil, err
+			}
+			waited += d
+			// The challenge does not consume a transient retry: it is a wait,
+			// not a failure, and counting it would cut the wait short.
+			attempt--
 			continue
-		case resp.StatusCode >= 400:
-			return nil, fmt.Errorf("http %d for %s", resp.StatusCode, rawURL)
+
+		case PageServerError:
+			lastErr = fmt.Errorf("amazon served an error page for %s", rawURL)
+			continue
+		}
+
+		switch {
+		case status == 429 || status == 503 || status >= 500:
+			lastErr = fmt.Errorf("http %d for %s", status, rawURL)
+			continue
+		case status >= 400:
+			return nil, fmt.Errorf("http %d for %s", status, rawURL)
 		}
 		return body, nil
 	}
@@ -298,6 +366,19 @@ func (c *Client) fetch(ctx context.Context, rawURL string) ([]byte, error) {
 		lastErr = fmt.Errorf("giving up on %s", rawURL)
 	}
 	return nil, lastErr
+}
+
+// wait sleeps, or returns early when the caller gave up. Tests replace it.
+func (c *Client) wait(ctx context.Context, d time.Duration) error {
+	if c.waitFn != nil {
+		return c.waitFn(ctx, d)
+	}
+	select {
+	case <-time.After(d):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // readBody reads the response, decompressing when needed.

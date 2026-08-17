@@ -1,0 +1,11 @@
+{
+  "name": "search_filtered",
+  "url": "https://www.amazon.com/s?k=mechanical+keyboard\u0026i=electronics\u0026rh=n%3A172282%2Cp_72%3A1248879011",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 1580893,
+  "sha256": "b77802eebc1c20da76b0e0741ad6273df2367da9c55082fb7405ff3325910a2f",
+  "scrubbed_session_ids": 51,
+  "why": "a department and a four star refinement applied, which is where the applied filter list and the remove links live"
+}

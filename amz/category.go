@@ -4,8 +4,6 @@ import (
 	"context"
 	"regexp"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 // CategoryURL builds the browse-node URL.
@@ -16,6 +14,14 @@ func (c *Client) CategoryURL(node string) string {
 var nodeRe = regexp.MustCompile(`node=(\d+)`)
 
 // FetchCategory fetches and normalizes a browse-node page.
+//
+// What a browse node is not, measured on 2026-08-17 across two captures: it is
+// not a paginated catalogue. Neither page carried a single pagination control,
+// and the items on them came to 59 and 91 spread across four and six carousels.
+// So this returns what the page actually is, a merchandised landing page and its
+// shelves, and anything wanting the whole of a category has to go to
+// /s?rh=n:<node> or to the chart for that node. Reporting 59 items as if they
+// were the category would be a quieter answer and a false one.
 func (c *Client) FetchCategory(ctx context.Context, nodeOrURL string) (Category, error) {
 	node := nodeOrURL
 	url := nodeOrURL
@@ -30,40 +36,34 @@ func (c *Client) FetchCategory(ctx context.Context, nodeOrURL string) (Category,
 	if err != nil {
 		return Category{}, err
 	}
-	doc, err := newDocument(body)
+	bp, err := c.parseBrowsePage(node, url, body)
 	if err != nil {
 		return Category{}, err
 	}
-	cat := Category{NodeID: node, URL: url, FetchedAt: time.Now().UTC()}
-	cat.Name = collapseSpace(firstNonEmptyText(doc, "h1.a-spacing-none", "#departments h1", ".a-carousel-heading", "title"))
-	doc.Find("#wayfinding-breadcrumbs_feature_div li a, .a-breadcrumb li a, #nav-subnav a").Each(func(_ int, s *goquery.Selection) {
-		if t := collapseSpace(s.Text()); t != "" {
-			cat.Breadcrumb = append(cat.Breadcrumb, t)
-		}
-	})
-	cat.Breadcrumb = dedup(cat.Breadcrumb)
-	doc.Find("a[href*='node=']").Each(func(_ int, s *goquery.Selection) {
-		if href, ok := s.Attr("href"); ok {
-			if m := nodeRe.FindStringSubmatch(href); m != nil && m[1] != node {
-				cat.ChildNodeIDs = append(cat.ChildNodeIDs, m[1])
-			}
-		}
-	})
-	cat.ChildNodeIDs = dedup(cat.ChildNodeIDs)
+	cat := Category{
+		NodeID:        node,
+		CanonicalNode: bp.CanonicalNode,
+		Slug:          bp.Slug,
+		Name:          bp.Name,
+		URL:           url,
+		CanonicalURL:  bp.CanonicalURL,
+		ChildNodeIDs:  bp.ChildNodeIDs,
+		ItemCount:     bp.Items,
+		FetchedAt:     time.Now().UTC(),
+		Envelope:      bp.Envelope,
+	}
 	if len(cat.ChildNodeIDs) > 50 {
 		cat.ChildNodeIDs = cat.ChildNodeIDs[:50]
 	}
-	doc.Find("a[href*='/dp/']").Each(func(_ int, s *goquery.Selection) {
-		if href, ok := s.Attr("href"); ok {
-			if a := ExtractASIN(href); a != "" {
-				cat.TopASINs = append(cat.TopASINs, a)
-			}
+	for _, sh := range bp.Shelves {
+		s := CategoryShelf{Widget: sh.Widget, Title: sh.Title}
+		for _, it := range sh.Items {
+			s.ASINs = append(s.ASINs, it.ASIN)
+			cat.TopASINs = append(cat.TopASINs, it.ASIN)
 		}
-	})
-	cat.TopASINs = dedup(cat.TopASINs)
-	if len(cat.TopASINs) > 50 {
-		cat.TopASINs = cat.TopASINs[:50]
+		cat.Shelves = append(cat.Shelves, s)
 	}
+	cat.TopASINs = dedup(cat.TopASINs)
 	if cat.Name == "" && len(cat.TopASINs) == 0 {
 		return cat, ErrNotFound
 	}

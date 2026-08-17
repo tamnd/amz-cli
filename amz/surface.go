@@ -102,6 +102,57 @@ func pathIs(paths ...string) func(*url.URL) int {
 	}
 }
 
+// pathTail matches a path by its last segment, whatever comes before it.
+//
+// Amazon's own canonical links put a human readable slug in front of the machine
+// readable part: the browse node for electronics is served at /b?node=172282 and
+// canonicalized to /electronics-store/b?ie=UTF8&node=172282. Both are the same
+// surface, and a matcher that only knew the bare form did not recognise the form
+// Amazon publishes. Caught by the capture ledger, which reported four captures as
+// belonging to no surface at all.
+func pathTail(tails ...string) func(*url.URL) int {
+	return func(u *url.URL) int {
+		got := strings.TrimSuffix(u.Path, "/")
+		for _, t := range tails {
+			if strings.HasSuffix(got, "/"+strings.Trim(t, "/")) {
+				return len(t)
+			}
+		}
+		return -1
+	}
+}
+
+// pathSegment matches a path by a segment anywhere inside it, which is how the
+// chart URLs are spelled: /gp/bestsellers/electronics and
+// /Best-Sellers-Electronics/zgbs/electronics are the same list under two names,
+// and zgbs is the only stable thing about the second.
+func pathSegment(segs ...string) func(*url.URL) int {
+	return func(u *url.URL) int {
+		for _, seg := range strings.Split(strings.Trim(u.Path, "/"), "/") {
+			for _, want := range segs {
+				if seg == want {
+					return len(want) + 1
+				}
+			}
+		}
+		return -1
+	}
+}
+
+// anyOf combines matchers and takes the best score, so a surface can list every
+// spelling Amazon uses for it rather than only the shortest.
+func anyOf(matchers ...func(*url.URL) int) func(*url.URL) int {
+	return func(u *url.URL) int {
+		best := -1
+		for _, m := range matchers {
+			if s := m(u); s > best {
+				best = s
+			}
+		}
+		return best
+	}
+}
+
 // ops is the registry. The order is the spec's surface order.
 var ops = []*Op{
 	{
@@ -130,14 +181,14 @@ var ops = []*Op{
 		Fields: []string{"node", "name", "children", "products"},
 		Why:    "robots",
 		Note:   "Allowed except five nodes, which robots.txt refuses by a query-string pattern.",
-		match:  pathIs("/b", "/gp/browse.html"),
+		match:  anyOf(pathIs("/b", "/gp/browse.html"), pathTail("/b")),
 	},
 	{
 		ID: "s5", Name: "bestsellers", Path: "/gp/bestsellers/<slug>/", Robots: RobotsAllowed, Since: "2026-08-17",
 		Fields: []string{"rank", "asin", "title", "price", "rating", "ratings_count"},
 		Why:    "charts",
 		Note:   "50 items per page, two pages per list.",
-		match:  pathPrefix("/gp/bestsellers"),
+		match:  anyOf(pathPrefix("/gp/bestsellers"), pathSegment("zgbs")),
 	},
 	{
 		ID: "s6", Name: "new-releases", Path: "/gp/new-releases/<slug>/", Robots: RobotsAllowed, Since: "2026-08-17",
@@ -187,7 +238,7 @@ var ops = []*Op{
 		ID: "s13", Name: "deals", Path: "/deals", Robots: RobotsAllowed, Since: "2026-08-17",
 		Fields: []string{"asin", "title", "price", "list_price", "discount", "deal_type", "ends_at"},
 		Why:    "deals",
-		match:  pathIs("/deals", "/gp/goldbox"),
+		match:  anyOf(pathIs("/deals", "/gp/goldbox"), pathPrefix("/events/")),
 	},
 	{
 		ID: "s14", Name: "robots", Path: "/robots.txt", Robots: RobotsNA, Since: "2026-08-17",

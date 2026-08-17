@@ -1,0 +1,11 @@
+{
+  "name": "chart_movers",
+  "url": "https://www.amazon.com/gp/movers-and-shakers/electronics",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 314005,
+  "sha256": "7a7939850ca433de858a5489403c76c9f47eb63d91f56ef75250f080bc74f633",
+  "scrubbed_session_ids": 8,
+  "why": "movers and shakers, captured with an empty grid. The container is on the page with data-offset=\"0\", data-client-recs-list=\"[]\" and no data-asin anywhere, so Amazon served the chart and left it for the client to fill. Zero entries here is the page and not the parser, and keeping it is what proves the empty-list branch reports a miss instead of returning a short chart quietly."
+}

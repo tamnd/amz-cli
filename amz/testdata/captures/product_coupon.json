@@ -1,0 +1,18 @@
+{
+  "name": "product_coupon",
+  "url": "https://www.amazon.com/dp/B09B8V1LZ3",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 1552245,
+  "sha256": "c21b2a96fdb14235f495d60b05bd6bb1f9063a0cc4256acc9e02927ee0052395",
+  "scrubbed_session_ids": 24,
+  "headers": {
+    "content-encoding": "gzip",
+    "content-type": "text/html;charset=UTF-8",
+    "server": "Server",
+    "status": "200",
+    "vary": "Accept-Encoding,User-Agent"
+  },
+  "why": "a coupon in the buy box, which is a discount that is not in the price and is easy to read as one"
+}

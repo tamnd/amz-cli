@@ -34,6 +34,12 @@ const (
 	CodePartial = 4
 	CodeBlocked = 5
 
+	// CodeInterstitial means Amazon served the bot challenge and kept serving it
+	// after the backoff gave up. It is separate from CodeBlocked because the two
+	// call for different things: a CAPTCHA is a decision and this is a rate, so
+	// this one is worth retrying later and that one is not.
+	CodeInterstitial = 6
+
 	// CodeDisallowed means robots.txt refused the read. It is not an error in
 	// the tool; it is the site's answer, and --no-robots is the only way past it.
 	CodeDisallowed = 7
@@ -42,6 +48,11 @@ const (
 	// because a crawler that treats a failed fetch as permission is the worst
 	// kind of crawler there is.
 	CodeNoRobots = 8
+
+	// CodeSignIn means the surface is behind a login. amz has no credentials and
+	// wants none, so this is a stop rather than a step: the page is not public,
+	// and there is nothing about it this tool is entitled to read.
+	CodeSignIn = 9
 )
 
 // ExitError carries a specific process exit code out of a command.
@@ -71,6 +82,10 @@ func codeFor(err error) int {
 		return ee.Code
 	case errors.Is(err, amz.ErrBlocked):
 		return CodeBlocked
+	case errors.Is(err, amz.ErrInterstitial):
+		return CodeInterstitial
+	case errors.Is(err, amz.ErrSignIn):
+		return CodeSignIn
 	case errors.Is(err, amz.ErrDisallowed):
 		return CodeDisallowed
 	case errors.Is(err, amz.ErrRobotsUnavailable):
@@ -278,6 +293,9 @@ func Root() *cobra.Command {
 		asinCmd(app),
 		robotsCmd(app),
 		surfacesCmd(app),
+		extractionCmd(app),
+		verifyCmd(app),
+		agentMapCmd(app),
 	)
 	return root
 }

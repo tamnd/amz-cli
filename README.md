@@ -65,6 +65,9 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz robots` | the marketplace's live robots.txt and the group `amz` reads under |
 | `amz robots check <url>...` | ask robots.txt about a URL and print the rule that decided it |
 | `amz surfaces` | every Amazon surface `amz` knows, with what was measured about it |
+| `amz extraction [asin\|url]` | how each field is read, and what is on the page that nothing reads |
+| `amz verify [--live] [--strict]` | compare pages against what they yielded when they were captured |
+| `amz agent-map <asin\|url>` | Amazon's own description of a page, printed verbatim |
 | `amz info` | show access tier, marketplace, and config summary |
 | `amz config` | view and manage configuration and PA-API credentials |
 | `amz cache path\|info\|clear` | inspect or clear the on-disk page cache |
@@ -175,6 +178,62 @@ Five browse nodes are refused by a pattern that only ever matches inside a query
 
 `--no-robots` is the override, and it is a flag and only a flag: not a config key, not an environment variable, and it lasts for one run.
 It prints a banner, names every rule it breaks as it breaks it, raises the pace floor from 1s to 5s, and needs `--yes` before it will do this to a whole crawl queue.
+
+## Where every field comes from
+
+A scraper is a claim about somebody else's HTML, and the useful question is not whether it returned something but how it knew.
+`amz extraction` answers that. Every field is declared at one of four rungs, and the rung is written down rather than inferred, so a field that quietly changes source has to change its declared rung to compile.
+
+```
+$ amz extraction
+FAMILY   REGION  PAYLOAD  ATTR  SELECTOR  TOTAL
+product  24      0        1     1         26
+search   17      0        4     0         21
+chart    0       1        4     4         9
+browse   3       1        6     11        21
+store    2       7        5     0         14
+seller   14      0        0     0         14
+```
+
+Rung 1 is a region Amazon named itself, `data-feature-name="bylineInfo"`, and it is the only rung that survives a restyling.
+Rung 2 is a JavaScript payload the page ships, rung 3 is a data attribute, and rung 4 is a bare CSS selector, which is a guess that happens to be right today.
+The report lists all sixteen rung 4 fields by name with the date each was added, because a selector that has survived a year of Amazon's restyling is a different risk from one written last week, and the date is the only evidence either way.
+
+Point it at a page and it reports what that page actually yielded.
+
+```
+$ amz extraction B075F5X8BR
+product  product  https://www.amazon.com/dp/B075F5X8BR  2359626 bytes
+23 fields set, 1 missed, 267 regions Amazon named that nothing reads
+
+not on this page:
+  similar_asins  product region "similarities" or "sims-consolidated-2_feature_div" not present on this page
+```
+
+A miss is a field the registry declared and the page did not carry, and the sentence beside it is the parser saying what it looked for.
+That is the difference between "no price" and "no price because the buy box is not on this page", and only the second one tells a caller what to do.
+`--fields` prints every field that filled and where it came from, and `--unread` lists the regions Amazon named that no field reads, which is the worklist for the next version rather than a silence.
+
+## Drift
+
+Twenty one pages are checked into this repository as gzipped captures, one per page family plus the body Amazon serves with a 200 and no product on it.
+Each one records what the parser made of it on the day it was taken, and `amz verify` compares that against what the same page yields now.
+
+```
+$ amz verify --live
+CAPTURE         STATUS  DETAIL
+product_simple  moved   267 unread regions, was 266
+seller_rated    same    14 fields, 5 records
+```
+
+Fewer fields than the ledger is a regression and fails under `--strict`.
+More unread regions is Amazon adding a section, which is worth knowing and is not a failure, because a tool that cried failure every time a marketing widget appeared would be ignored inside a month.
+Without `--live` it reads only pages already in the cache, so a curious run costs Amazon nothing.
+
+The ledger found two real defects on its first pass: four of Amazon's own canonical URL forms resolved to no known surface, and chart pages were recording fifty entries beside an envelope claiming nothing had been read.
+
+`amz agent-map` prints Amazon's own interface map for a page, exactly as served.
+It is recorded and never trusted. It is a statement by the site about the site, useful for finding a region worth reading and worthless as evidence that the region holds what it says.
 
 ## Access tiers
 

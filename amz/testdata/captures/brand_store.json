@@ -1,0 +1,11 @@
+{
+  "name": "brand_store",
+  "url": "https://www.amazon.com/stores/Skullcandy/page/9F16B940-F912-43FE-888C-5BB1B86337A9",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 520435,
+  "sha256": "6885af49b31f3d0ff002d1252c2eea13b966fc3c8d48c03934ba76b15777dd34",
+  "scrubbed_session_ids": 32,
+  "why": "a brand storefront: a JavaScript shell with two ASINs in half a megabyte, so the missed path is tested on a real page"
+}

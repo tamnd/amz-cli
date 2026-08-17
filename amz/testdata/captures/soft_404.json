@@ -1,0 +1,17 @@
+{
+  "name": "soft_404",
+  "url": "https://www.amazon.com/dp/B000000000",
+  "marketplace": "us",
+  "fetched": "2026-08-17",
+  "user_agent": "amz-cli/0.3.0 (+https://github.com/tamnd/amz-cli)",
+  "bytes": 2296,
+  "sha256": "34c92fb4c6351b94e5cc16f68bb483b0fcda57ee7c43887214005b87d1888d3a",
+  "headers": {
+    "content-encoding": "gzip",
+    "content-type": "text/html;charset=UTF-8",
+    "server": "Server",
+    "status": "404",
+    "vary": "Accept-Encoding,User-Agent"
+  },
+  "why": "the 2,296 byte body Amazon serves with a 200 for an ASIN that does not exist, which is a stop the status line does not report"
+}
