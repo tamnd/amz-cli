@@ -15,15 +15,15 @@ says which of those answered.
 ## One product
 
 ```bash
-amz product B084DWG2VQ
-amz product B084DWG2VQ -o json
+amz product B075F5X8BR
+amz product B075F5X8BR -o json
 ```
 
 You can pass several at once, or full URLs; amz extracts the ASIN from any
 Amazon URL shape:
 
 ```bash
-amz product B084DWG2VQ B07XJ8C8F5 "https://www.amazon.com/dp/B08N5WRWNW"
+amz product B075F5X8BR B07XJ8C8F5 "https://www.amazon.com/dp/B08N5WRWNW"
 ```
 
 ## The fields
@@ -87,7 +87,7 @@ A product is usually ranked once overall and again in one or more subcategories.
 Each entry in `ranks` carries `rank`, `category`, `node`, and `overall`:
 
 ```bash
-amz product B084DWG2VQ -o json --fields asin,ranks
+amz product B075F5X8BR -o json --fields asin,ranks
 ```
 
 `overall` marks the department level rank, the one people mean by "sales rank",
@@ -102,7 +102,7 @@ the current selection, and the siblings. Add `--variants` to print the sibling
 ASINs as their own rows:
 
 ```bash
-amz product B084DWG2VQ --variants -o jsonl
+amz product B075F5X8BR --variants -o jsonl
 ```
 
 A sibling always has its ASIN and its dimension values. It gets a price, an image
@@ -140,8 +140,8 @@ listing with 88 siblings is ninety requests and a minute and a half of polite
 crawling for one record, and that is worth agreeing to rather than discovering.
 
 ```bash
-amz product B084DWG2VQ --depth quick     # cheapest useful read
-amz product B084DWG2VQ --depth deep --yes
+amz product B075F5X8BR --depth quick     # cheapest useful read
+amz product B075F5X8BR --depth deep --yes
 ```
 
 ## Offers alongside
@@ -150,7 +150,7 @@ amz product B084DWG2VQ --depth deep --yes
 detail page and the offer list in one go:
 
 ```bash
-amz product B084DWG2VQ --with-offers -o json
+amz product B075F5X8BR --with-offers -o json
 ```
 
 ## The raw page
@@ -158,7 +158,7 @@ amz product B084DWG2VQ --with-offers -o json
 When you want the bytes amz parsed, not the record:
 
 ```bash
-amz product B084DWG2VQ --raw > page.html
+amz product B075F5X8BR --raw > page.html
 ```
 
 ## Just the price
@@ -166,8 +166,8 @@ amz product B084DWG2VQ --raw > page.html
 For price-watching, `price` skips everything else:
 
 ```bash
-amz price B084DWG2VQ B07XJ8C8F5
-amz price B084DWG2VQ -m uk
+amz price B075F5X8BR B07XJ8C8F5
+amz price B075F5X8BR -m uk
 ```
 
 ## Recommendation rails
@@ -176,8 +176,8 @@ amz price B084DWG2VQ -m uk
 viewed" and "frequently bought together" rails:
 
 ```bash
-amz related B084DWG2VQ
-amz related B084DWG2VQ --kind also-viewed -o jsonl
+amz related B075F5X8BR
+amz related B075F5X8BR --kind also-viewed -o jsonl
 ```
 
 ## Dry run
@@ -185,5 +185,5 @@ amz related B084DWG2VQ --kind also-viewed -o jsonl
 See the URL without fetching, useful when scripting across marketplaces:
 
 ```bash
-amz product B084DWG2VQ -m de --dry-run
+amz product B075F5X8BR -m de --dry-run
 ```

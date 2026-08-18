@@ -6,8 +6,8 @@ weight: 15
 
 amz turns each Amazon surface into one typed record. Every command emits a
 stream of one record type, and the JSON name of a field is stable across
-formats, so `--fields`, `--template`, and DuckDB's `data->>'name'` all reach the
-same names you see here.
+formats, so `--fields`, `--template`, and SQLite's
+`json_extract(json, '$.name')` all reach the same names you see here.
 
 Two rules hold everywhere in this document.
 
@@ -258,9 +258,13 @@ to read.
 ## QA
 
 `amz qa` returns one `QA` per pair: `qa_id`, `asin`, `question`, `question_by`,
-`answer`, `answer_by`, `helpful_votes`, `url`. Amazon is retiring this section
-across many categories, and a product without one returns a distinct error
-rather than an empty list.
+`answer`, `answer_by`, `helpful_votes`, `url`.
+
+Most products now carry no ask region at all, and the ones that do state the
+answered count while keeping the pairs behind a sign-in: the standalone page
+redirects to `/ap/signin` with `assoc_handle=amzn_ask_us`, which is the Q&A
+service asking rather than a generic redirect. A product with no pairs exits 3
+rather than printing an empty list.
 
 ## Offer listing
 
@@ -351,7 +355,7 @@ else in the flat record is a projection and the envelope is not, so a flat recor
 still names its sources and its misses.
 
 ```bash
-amz product B084DWG2VQ --flat
+amz product B075F5X8BR --flat
 ```
 
 ## Reaching a field
@@ -360,14 +364,14 @@ Because every field has one stable name, the same name works in every tool:
 
 ```bash
 # project columns in any format
-amz product B084DWG2VQ -o csv --fields asin,price,savings_pct,rank
+amz product B075F5X8BR -o csv --fields asin,price,savings_pct,rank
 
 # a custom line with a template
 amz search "usb c cable" --template '{{.asin}} {{.price}} {{.title}}'
 
 # the envelope is part of the record, so provenance queries are ordinary queries
-amz product B084DWG2VQ -o jsonl | jq -r '.envelope.via.price'
-amz product B084DWG2VQ -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
+amz product B075F5X8BR -o jsonl | jq -r '.envelope.via.price'
+amz product B075F5X8BR -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
 
 # a typed column out of the local store's JSON
 amz db query "select asin, (data->'offer'->'price'->>'value')::double price from products order by price desc limit 10"

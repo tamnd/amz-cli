@@ -35,8 +35,8 @@ sudo dpkg -i amz_*_linux_amd64.deb
 sudo rpm -i amz_*_linux_amd64.rpm
 ```
 
-The package suggests `duckdb` as an optional dependency for the local store; amz
-runs fine without it.
+The packages have no dependencies. The binary is pure Go and SQLite is compiled
+into it, so there is nothing to install alongside amz for the local store.
 
 ## Homebrew and Scoop
 
@@ -50,7 +50,7 @@ scoop bucket add tamnd https://github.com/tamnd/scoop-bucket && scoop install am
 ## Docker
 
 ```sh
-docker run --rm ghcr.io/tamnd/amz product B084DWG2VQ
+docker run --rm ghcr.io/tamnd/amz product B075F5X8BR
 ```
 
 Mount a volume at `/data` to keep the cache and local store between runs:

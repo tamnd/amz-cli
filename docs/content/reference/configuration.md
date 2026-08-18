@@ -21,7 +21,7 @@ Each slug sets the host, currency, and language for every URL amz builds. An
 unknown slug is a usage error (exit 2).
 
 ```bash
-amz product B084DWG2VQ -m uk
+amz product B075F5X8BR -m uk
 amz info                 # shows the resolved marketplace and access tier
 ```
 
@@ -76,8 +76,9 @@ The file lives under the XDG config directory (`~/.config/amz/` on Linux,
 ## Paths
 
 By default amz keeps its data under the XDG data directory and its cache under
-the XDG cache directory, with the DuckDB store at `<data>/amz.duckdb`. `amz db
-path` and `amz cache info` print the resolved locations.
+the XDG cache directory, with the SQLite store at `<data>/amz.db`. `amz db path`
+and `amz cache info` print the resolved locations, and `--data-dir` moves the
+whole lot, which is the easy way to keep one store per project.
 
 ## Keys that do not exist
 

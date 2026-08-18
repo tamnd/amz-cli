@@ -16,7 +16,7 @@ No command is removed. Three change what they read, one needs a flag, and the re
 | --- | --- |
 | `amz reviews <asin>` reads `/product-reviews/`, which redirects to a login | reads the reviews and the histogram embedded in the detail page, and says in `missed` that the corpus needs a login. `--deep` still tries the old path and needs `--no-robots` |
 | `amz qa <asin>` reads `/ask/questions/`, which redirects to a login | reads the answered question count and any inline Q&A from the `ask` feature region, and says the rest needs a login |
-| `amz offers <asin>` reads `/gp/offer-listing/`, which is disallowed and redirects | reads every offer from the detail page's buy box and offer display regions. Needs no flag |
+| `amz offers <asin>` reads `/gp/offer-listing/`, which is disallowed and redirects | reads the buy box from the detail page and states the count of the offers behind it. Needs no flag |
 | `amz product` returns 38 fields | returns everything the 288 feature regions carry |
 | `--cookies <file>` | removed. The code that sent a `Cookie` header is deleted |
 | rotating browser user agents | one honest user agent. No flag restores the old behaviour |
@@ -146,6 +146,15 @@ A name that does not already point at a page is now resolved the way a person re
 The brand is read off `premiumBylineInfo`, which is where Amazon puts it for a premium brand while leaving `bylineInfo` on the page and empty.
 Every premium listing on the site, which is most of the ones anybody searches for by name, returned a null brand before this.
 A byline that renders the brand as a logo and then as a link no longer stops at the logo, since the first anchor in that region has no text in it.
+
+One cell of a partitioned search no longer discards the whole union.
+Amazon does not reject an `rh` term it will not honour, it drops the term and serves the unfiltered grid with a 200, and `--all` generates its cells from the sidebar rather than from anything anybody typed.
+A cell served unfiltered is now recorded, named on stderr and in `summary.ignored`, and the other cells are still read.
+The union is also emitted before the walk's error is returned, so a run that read sixty-seven cells and lost the sixty-eighth prints the sixty-seven instead of printing nothing.
+Both bugs were live at once, which is why `amz search "usb-c hub" --all` reported `0 unique results` beside a duplicate count that could only have come from cards it had already thrown away.
+
+`amz search --all` reports the sponsored placements it dropped, the way a plain search does.
+The union counts distinct ASINs and the rows are what survived the sponsored filter, so without that line a run printing 1,434 rows under a summary saying 1,508 unique looks like it lost 74 of them.
 
 `api-services-support@amazon.com` is no longer treated as a block marker above 5 KB, so a real soft 404 classifies as not found instead of as blocked.
 Gzip is decoded correctly now that `Accept-Encoding` is set by hand, which turns off Go's transparent handling.

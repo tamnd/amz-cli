@@ -59,8 +59,8 @@ func categoryCmd(app *App) *cobra.Command {
 func brandCmd(app *App) *cobra.Command {
 	var featured bool
 	cmd := &cobra.Command{
-		Use:   "brand <slug|url>",
-		Short: "Fetch a brand storefront",
+		Use:   "brand <name|slug|url>",
+		Short: "Fetch a brand storefront, resolving a bare name through a product byline",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := app.Client()

@@ -6,29 +6,57 @@ weight: 40
 
 ## Offers
 
-`amz offers` lists every buying option on the offer-listing page: the Buy Box
-plus all the competing sellers and conditions.
+`amz offers` returns the buy box and the count of the offers behind it.
 
 ```bash
-amz offers B084DWG2VQ
-amz offers B084DWG2VQ -o jsonl
+amz offers B075F5X8BR
+amz offers B075F5X8BR -o jsonl
 ```
 
-Each `Offer` carries `price`, `currency`, `shipping`, `condition`,
-`seller_name`, `seller_id`, `seller_rating`, `fulfilled_by`, `delivery`, and
-`is_buybox`. Narrow by condition:
+Each `Offer` carries `price`, `currency`, `condition`, `seller_name`,
+`seller_id`, `fulfilled_by`, `delivery`, and `is_buybox`. Narrow by condition:
 
 ```bash
-amz offers B084DWG2VQ --condition used
-amz offers B084DWG2VQ --prime          # Prime / FBA-fulfilled only
+amz offers B075F5X8BR --condition used
+amz offers B075F5X8BR --prime          # Amazon-fulfilled only
 ```
 
-Find the cheapest option:
+### Why this is a count and not a list
 
-```bash
-amz offers B084DWG2VQ -o jsonl \
-  | sort -t: -k2 -n            # or pipe through jq for a clean min
+The full seller list is not readable. Two separate things stop it, and both are
+worth knowing before you go looking for a flag:
+
+`/gp/offer-listing/` is disallowed by `robots.txt`, and amz asks the live file
+before every request rather than guessing:
+
+```console
+$ amz robots check /gp/offer-listing/B075F5X8BR
+disallowed  https://www.amazon.com/gp/offer-listing/B075F5X8BR  Disallow: /gp/offer-listing/  offers s18
 ```
+
+That path also 301s to the detail page now, so overriding the rule buys a
+redirect rather than an offer list. Amazon is saying the offers are on the
+product page, and they are: the buy box, the seller, the fulfiller, the condition
+and the delivery promise all read cleanly from it.
+
+What is not on it is the other sellers' rows. Those are drawn by JavaScript, and
+the endpoint the page's own script calls answers 404 to a direct request in both
+of the forms it takes, measured on 2026-08-17:
+
+```
+/gp/aod/ajax?asin=<asin>&pc=dp                        404
+/gp/aod/ajax/ref=dp_aod_NEW_mbc?asin=<asin>&pc=dp     404
+```
+
+What the detail page does state is how many offers there are. So the record says
+`other_offers.total_count` with `complete: false` beside the one offer it holds:
+
+```json
+"other_offers": { "loaded": 1, "total_count": 2, "complete": false }
+```
+
+A count with `complete: false` is a smaller answer than a list, and it is an
+honest one. `amz why offers` has the measurement and the date.
 
 ## The five charts
 
@@ -88,7 +116,6 @@ promotion ends, while the ASIN stays.
 Pull the top 25 bestsellers and enrich each into a full product record:
 
 ```bash
-amz bestsellers electronics -n 25 -o url \
-  | sed 's#.*/dp/##; s#/.*##' \
+amz bestsellers electronics -n 25 --fields asin -o csv --no-header \
   | xargs -I{} amz product {} -o jsonl > top25.jsonl
 ```
