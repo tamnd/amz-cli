@@ -3,6 +3,7 @@ package amz
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -160,10 +161,7 @@ func TestHostTablesAgree(t *testing.T) {
 // write replaced the first and a crawl of both sites reported one product at
 // whichever price arrived last.
 func TestStoreKeepsMarketplacesApart(t *testing.T) {
-	s, err := OpenStore(filepath.Join(t.TempDir(), "amz.duckdb"))
-	if errors.Is(err, ErrNoDuckDB) {
-		t.Skip("duckdb not installed")
-	}
+	s, err := OpenStore(filepath.Join(t.TempDir(), "amz.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,17 +179,17 @@ func TestStoreKeepsMarketplacesApart(t *testing.T) {
 		}
 	}
 
-	rows, err := s.Query(ctx, "SELECT marketplace, uri FROM products WHERE asin='B075F5X8BR' ORDER BY marketplace;")
+	rows, err := s.Query(ctx, "SELECT marketplace, uri FROM product WHERE asin='B075F5X8BR' ORDER BY marketplace")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(rows) != 2 {
 		t.Fatalf("got %d rows for one ASIN in two storefronts, want 2: %v", len(rows), rows)
 	}
-	if got := asString(rows[0]["uri"]); got != "amz:uk/product/B075F5X8BR" {
+	if got := fmt.Sprint(rows[0]["uri"]); got != "amz:uk/product/B075F5X8BR" {
 		t.Errorf("uk uri = %q", got)
 	}
-	if got := asString(rows[1]["uri"]); got != "amz:us/product/B075F5X8BR" {
+	if got := fmt.Sprint(rows[1]["uri"]); got != "amz:us/product/B075F5X8BR" {
 		t.Errorf("us uri = %q", got)
 	}
 

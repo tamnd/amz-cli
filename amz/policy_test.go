@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -456,4 +457,88 @@ func readFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// TestNoExternalBinaries pins the fifth decision: amz is one binary.
+//
+// Through v0.2.1 the store shelled out to a `duckdb` executable, and it did so
+// from a package whose README opened with "one pure-Go binary". Anybody who
+// installed amz and ran `amz db query` on a machine without DuckDB got an error
+// about a program they had never been told to install. The store is now
+// modernc.org/sqlite, which is Go all the way down, and this test is what keeps
+// the next convenient exec.Command from undoing that.
+//
+// There is one exemption and it is named here rather than pattern matched.
+// `amz open` hands a URL to the platform's opener, which is the user asking for
+// a browser rather than amz needing a program to do its own work. Every other
+// call site is a step back towards a tool that half works on a clean machine.
+func TestNoExternalBinaries(t *testing.T) {
+	const exempt = "cli/meta.go" // openBrowser, and nothing else
+	calls := 0
+	for _, f := range repoFiles(t) {
+		if strings.HasSuffix(f, "policy_test.go") {
+			continue
+		}
+		b := readFile(t, f)
+		if rel(t, f) == exempt {
+			calls = strings.Count(b, "exec.Command")
+			continue
+		}
+		for _, bad := range []string{"exec.Command", "exec.LookPath", "exec.CommandContext", `"os/exec"`} {
+			if strings.Contains(b, bad) {
+				t.Errorf("%s uses %s: amz is one binary and runs no external program", rel(t, f), bad)
+			}
+		}
+	}
+	// The exemption is for one call. If it grows, it is not an exemption any
+	// more and whatever was added needs its own argument.
+	if calls != 1 {
+		t.Errorf("%s makes %d exec.Command calls, and the exemption is for the single one in openBrowser", exempt, calls)
+	}
+}
+
+// TestBuildsStatic proves the same thing from the outside.
+//
+// Reading the source for exec.Command catches the obvious way to break this and
+// misses every other one, including a cgo dependency on a system library. This
+// builds the binary with CGO disabled and runs it with PATH emptied, so nothing
+// on the machine can be found even if something tried.
+func TestBuildsStatic(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the binary")
+	}
+	bin := filepath.Join(t.TempDir(), "amz")
+	build := exec.Command("go", "build", "-o", bin, "./cmd/amz")
+	build.Dir = ".."
+	build.Env = append(os.Environ(), "CGO_ENABLED=0")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("CGO_ENABLED=0 build failed: %v\n%s", err, out)
+	}
+
+	db := filepath.Join(t.TempDir(), "amz.db")
+	run := exec.Command(bin, "--data-dir", filepath.Dir(db), "db", "stats")
+	// PATH empty, HOME somewhere with nothing in it. If the store needs a
+	// program, this is where it fails to find one.
+	run.Env = []string{"PATH=", "HOME=" + t.TempDir()}
+	out, err := run.CombinedOutput()
+	if err != nil {
+		t.Fatalf("the binary could not open a store with an empty PATH: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "product") {
+		t.Errorf("db stats printed no tables, so the store was not created:\n%s", out)
+	}
+}
+
+// rel shortens a repo path for an error message, because the absolute path of a
+// checkout is noise in a failure that is about the file's contents.
+func rel(t *testing.T, path string) string {
+	t.Helper()
+	root, err := filepath.Abs("..")
+	if err != nil {
+		return path
+	}
+	if r, err := filepath.Rel(root, path); err == nil {
+		return r
+	}
+	return path
 }

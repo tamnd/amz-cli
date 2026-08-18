@@ -157,7 +157,12 @@ func anyOf(matchers ...func(*url.URL) int) func(*url.URL) int {
 var ops = []*Op{
 	{
 		ID: "s1", Name: "product", Path: "/dp/<asin>", Robots: RobotsAllowed, Since: "2026-08-17",
-		Fields: []string{"asin", "title", "brand", "price", "rating", "ratings_count", "availability", "description", "bullet_points", "images", "category_path", "browse_node_ids", "variant_asins", "reviews", "rating_histogram", "buy_box"},
+		// rails, similar_asins and bought_past_month were missing from this list
+		// until the merge policy went in and made the list load bearing. The
+		// detail page carries all three, and the recommendation strips are the
+		// whole reason DepthFull exists, so leaving them undeclared meant the
+		// merge would never let a later read of this surface update them.
+		Fields: []string{"asin", "title", "brand", "price", "rating", "ratings_count", "availability", "description", "bullet_points", "images", "category_path", "browse_node_ids", "variant_asins", "reviews", "rating_histogram", "buy_box", "rails", "similar_asins", "bought_past_month"},
 		Why:    "product",
 		Note:   "1.7 to 2.2 MB. Carries reviews, the histogram and the buy box that the dead review surfaces used to serve.",
 		match:  pathPrefix("/dp/", "/gp/product/"),
