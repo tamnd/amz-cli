@@ -23,7 +23,7 @@ WORKDIR /data
 
 # All state lives under /data; mount a volume to keep the cache and local store:
 #
-#   docker run -v ~/data/amz:/data ghcr.io/tamnd/amz product B084DWG2VQ
+#   docker run -v ~/data/amz:/data ghcr.io/tamnd/amz product B075F5X8BR
 ENV AMZ_DATA_DIR=/data
 VOLUME ["/data"]
 

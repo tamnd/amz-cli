@@ -2,9 +2,12 @@ package amz
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 )
 
 // BrandURL builds a brand storefront URL from a slug or page id.
@@ -68,6 +71,14 @@ func (c *Client) FetchBrand(ctx context.Context, slugOrURL string) (Brand, error
 		url = c.BrandURL(slugOrURL)
 	}
 	body, src, err := c.GetSource(ctx, url, 24*time.Hour)
+	if errors.Is(err, ErrNotFound) && isBrandName(slugOrURL) {
+		var rerr error
+		if url, rerr = c.ResolveBrandStore(ctx, slugOrURL); rerr != nil {
+			return Brand{}, rerr
+		}
+		slug = brandSlug(url)
+		body, src, err = c.GetSource(ctx, url, 24*time.Hour)
+	}
 	if err != nil {
 		return Brand{}, err
 	}
@@ -77,6 +88,103 @@ func (c *Client) FetchBrand(ctx context.Context, slugOrURL string) (Brand, error
 	}
 	c.record(ctx, &b.Envelope, src)
 	return b, nil
+}
+
+// brandProbeLimit is how many search results a resolve is allowed to open.
+//
+// Three, because the byline is on the first result for a brand that has a
+// storefront, and a brand that does not have one is not going to grow one on the
+// tenth result. Each probe is a detail page at the pacing every other request
+// pays, so the ceiling is a promise about what `amz brand anker` costs.
+const brandProbeLimit = 3
+
+// ResolveBrandStore finds the storefront URL for a brand name.
+//
+// Measured on 2026-08-18: https://www.amazon.com/stores/anker is a 404 of 1,147
+// bytes, and so is /stores/Skullcandy, and so is every other guess. A storefront
+// lives at /stores/<name>/page/<uuid>, the uuid is not derivable from the name,
+// and the only public page that states it is the byline link on a product the
+// brand sells. There is no lookup endpoint and no redirect from the short path.
+//
+// So this does what a person does. It searches the name, opens the first few
+// organic results, and follows the byline link on the first one whose brand is
+// the brand that was asked for. The name has to match because searching "anker"
+// returns other people's hubs too, and returning a competitor's storefront under
+// the name the caller typed is worse than returning nothing.
+//
+// It costs up to four requests, and it only runs after the short path has
+// already answered 404, so a caller who passes a full storefront URL or a
+// /stores/<name>/page/<uuid> slug pays for exactly one.
+func (c *Client) ResolveBrandStore(ctx context.Context, name string) (string, error) {
+	var asins []string
+	err := c.Search(ctx, name, SearchQuery{Limit: brandProbeLimit}, func(card Card) error {
+		// Sponsored cards are somebody who paid to sit above the brand that was
+		// asked for, which is the one place a wrong storefront comes from.
+		if !card.Sponsored && card.ASIN != "" {
+			asins = append(asins, card.ASIN)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	want := foldBrand(name)
+	for _, a := range asins {
+		p, perr := c.FetchProduct(ctx, a)
+		if perr != nil {
+			// A dead listing among the results is not an answer about the
+			// brand. Anything else, a CAPTCHA or a robots rule or a login wall,
+			// is the caller's business and stops the walk.
+			if errors.Is(perr, ErrNotFound) {
+				continue
+			}
+			return "", perr
+		}
+		if p.Brand == nil || !strings.Contains(p.Brand.URL, "/stores/") {
+			continue
+		}
+		if foldBrand(p.Brand.Name) != want {
+			continue
+		}
+		return trimStoreURL(p.Brand.URL), nil
+	}
+	return "", fmt.Errorf("no storefront for %q: amazon puts a brand store at /stores/<name>/page/<uuid> and only a product byline names that uuid, and the first %d results for %q did not carry one: %w", name, brandProbeLimit, name, ErrNotFound)
+}
+
+// isBrandName reports whether the argument is a bare name rather than something
+// that already points at a page.
+func isBrandName(s string) bool {
+	return !IsURL(s) && !strings.Contains(s, "/")
+}
+
+// foldBrand is the comparison two spellings of one brand have to survive.
+//
+// The byline says "Anker" and the caller typed "anker", or the byline says
+// "Skullcandy" and the caller typed "skull candy". Case and everything that is
+// not a letter or a digit come out, and what is left has to match exactly,
+// because a prefix match makes "sony" claim the Sony Pictures store.
+func foldBrand(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// trimStoreURL drops the query a byline link carries.
+//
+// The link on a detail page is ?lp_asin=<the product>&ref_=ast_bln&store_ref=...,
+// which is Amazon's record of which product the reader came from. Keeping it
+// would put the probe ASIN in the storefront record's own URL, and it would
+// make two callers who resolved the same brand from different products look
+// like they read two different pages.
+func trimStoreURL(u string) string {
+	if i := strings.IndexAny(u, "?#"); i >= 0 {
+		return u[:i]
+	}
+	return u
 }
 
 // parseBrandPage reads a storefront that has already been fetched.

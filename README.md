@@ -56,7 +56,7 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz gifted [category]` | most gifted items |
 | `amz category <node_id\|url>` | a browse node: name, related nodes, shelves, top ASINs |
 | `amz tree [node_id\|url]` | the browse node graph outward from a node, one request per node |
-| `amz brand <slug\|url>` | a brand storefront |
+| `amz brand <name\|slug\|url>` | a brand storefront, resolved from a bare name through a product byline |
 | `amz seller <id\|url>` | a third-party seller profile and rating breakdown |
 | `amz author <slug\|url>` | an Author Central page |
 | `amz deals` | today's deals grid |
@@ -90,50 +90,68 @@ Full reference and guides live at [amz-cli.tamnd.com](https://amz-cli.tamnd.com)
 ## Usage
 
 ```bash
-amz product B084DWG2VQ                     # one product, fully normalized
-amz product B084DWG2VQ --light             # the smallest useful read
-amz variants B084DWG2VQ                    # every sibling in the variation family
-amz why reviews                            # why there are thirteen and not four thousand
+amz product B075F5X8BR                     # one product, fully normalized
+amz product B075F5X8BR --light             # the smallest useful read
+amz variants B075F5X8BR                    # every sibling in the variation family
+amz why reviews                            # why there are thirteen and not twenty thousand
 amz doctor                                 # check the client, the network and the store
 amz search "mechanical keyboard" -n 20     # catalog search results
-amz reviews B084DWG2VQ --stars 1           # the one-star reviews
-amz offers B084DWG2VQ                      # the buy box and how many offers sit behind it
+amz reviews B075F5X8BR --stars 1           # the one-star reviews
+amz offers B075F5X8BR                      # the buy box and how many offers sit behind it
 amz bestsellers electronics                # the live top-100 chart
 amz category 172282                        # the Electronics browse node
-amz product B084DWG2VQ -m uk              # any of 16 marketplaces
+amz product B075F5X8BR -m uk              # any of 16 marketplaces
 ```
 
 One product on a terminal prints as a card rather than as a row of truncated
 cells. The histogram is drawn because Amazon publishes it, and the block at the
-bottom is generated from the record's own account of what it could not read:
+bottom is generated from the record's own account of what it could not read.
+This is a real run, pasted as it printed:
 
 ```
-Echo Dot (4th Gen) | Smart speaker with Alexa | Charcoal
-  B075F5X8BR  ·  amazon.com  ·  read 2026-08-17 07:15
+Skullcandy Jib Wired Earbuds with 3.5mm AUX Plug - White | 3.5mm Wired Earbuds,
+In-Ear Headphones, Noise Isolating Fit, In-Line Microphone Call and Track
+Control, Travel Ready
+  B075F5X8BR  ·  amazon.com  ·  read 2026-08-18 12:14
 
-  $49.99                        was $59.99, save 17%
+  VND209,378                    was VND261,788, save 20%
   In Stock                      ships from and sold by Amazon.com
-  4.7 out of 5                  284,512 ratings
+  4.4 out of 5                  21,095 ratings
 
   5 ★ ████████████████████████████████████  73%
-  4 ★ ███████                               15%
-  3 ★ ██                                     6%
+  4 ★ ██████                                13%
+  3 ★ ███                                    7%
   2 ★ █                                      2%
-  1 ★ █                                      4%
+  1 ★ ██                                     5%
                                 counts derived from integer percentages
 
-  Brand      Amazon
-  Rank       #3 in Electronics · #1 in Smart Speakers
-  Variants   2 of 2 shown  ·  Color
-  Category   Electronics › Smart Home › Speakers
+  Brand      Skullcandy
+  Rank       #38 in Electronics · #5 in Earbud & In-Ear Headphones
+  Variants   10 of 10 shown  ·  Size, Color
+  Category   Electronics › Headphones, Earbuds & Accessories › Headphones &
+             Earbuds › Earbud Headphones
+  Bought     10K+ bought in past month
 
   not read
-    other_offers 1 of 22. the all-offers panel is built by javascript and states
-                 only its own count on the page
-                 run `amz why offers` for the detail
-    reviews      13 of 284,512. amazon requires a sign-in for the review corpus
-                 run `amz why reviews` for the detail
+    other_offers  1 of 2. the all-offers panel is built by javascript and states
+                  only its own count on the page
+                  run `amz why offers` for the detail
+    rails         0 of 2. the page carries 2 recommendation strips and this depth
+                  drops them
+                  run `amz product --depth full` for the detail
+    reviews       13 of 21,095. amazon requires a sign-in for the review corpus,
+                  and the detail page carries the histogram and the reviews
+                  medley only. the total is the ratings count, which is the
+                  largest number the page states
+                  run `amz why reviews` for the detail
+    similar_asins product region "similarities" or "sims-consolidated-2_feature_div"
+                  not present on this page
 ```
+
+The prices are in dong because amazon.com prices in the currency of whoever is
+asking, and the machine that ran this is in Vietnam. There is no flag for that
+and there should not be: the record says what the page said. `--marketplace` and
+a different egress are the two things that change it.
 
 Records come out as a table (the default on a terminal), JSON, JSONL, CSV, TSV,
 url, or raw:
@@ -142,8 +160,8 @@ url, or raw:
 amz bestsellers electronics --fields rank,title,price,rating -o table
 amz bestsellers electronics -n 20 --fields asin,title,price -o csv
 amz bestsellers electronics -n 10 -o url
-amz product B084DWG2VQ -o json
-amz reviews B084DWG2VQ -o jsonl | jq 'select(.stars <= 2)'
+amz product B075F5X8BR -o json
+amz reviews B075F5X8BR -o jsonl | jq 'select(.stars <= 2)'
 ```
 
 Turn a search into full product records:
@@ -160,7 +178,7 @@ Collect a category's bestsellers and query the local store:
 amz crawl --chart bestsellers --category electronics --dry-run   # what it will cost
 amz crawl --chart bestsellers --category electronics
 amz query "select brand, count(*) n from product group by brand order by n desc"
-amz series B084DWG2VQ                                            # every price seen, oldest first
+amz series B075F5X8BR                                            # every price seen, oldest first
 ```
 
 The store is SQLite, through a pure Go implementation, so there is nothing to
@@ -179,10 +197,10 @@ a page that was fetched for its price. They are stored as edges, and `amz graph`
 walks them.
 
 ```bash
-amz graph B084DWG2VQ                          # one hop out, organic only
-amz graph B084DWG2VQ --depth 2 --symmetric    # two hops, following variants both ways
-amz graph B084DWG2VQ --predicate sold_by      # just the merchant
-amz graph B084DWG2VQ --edges -o jsonl         # the claims rather than the nodes
+amz graph B075F5X8BR                          # one hop out, organic only
+amz graph B075F5X8BR --depth 2 --symmetric    # two hops, following variants both ways
+amz graph B075F5X8BR --predicate sold_by      # just the merchant
+amz graph B075F5X8BR --edges -o jsonl         # the claims rather than the nodes
 amz graph --predicates                        # the sixteen, and what each one carries
 ```
 
@@ -228,7 +246,7 @@ The same read commands, over HTTP for a script and over stdio for a model.
 amz serve                                     # 127.0.0.1:8787
 amz serve --tools                             # the registry, without starting anything
 curl localhost:8787/v1/tools                  # the 25 tools and their arguments
-curl 'localhost:8787/v1/tools/reviews?asin=B084DWG2VQ&stars=5&verified'
+curl 'localhost:8787/v1/tools/reviews?asin=B075F5X8BR&stars=5&verified'
 curl -X POST localhost:8787/v1/tools/search -d '{"query":"usb-c hub","brand":"Anker","sort":"price-asc"}'
 amz mcp                                       # the same tools as Model Context Protocol
 ```
@@ -245,7 +263,7 @@ anything in it. An empty list means the tool looked and there was nothing more.
 A missing key would mean the server forgot to say, and a caller cannot tell those
 apart afterwards. This is the part that matters over the wire: `reviews` returns
 the handful of reviews the detail page carries along with a `missed` entry saying
-there are 284,512, so a model reading the result is told what it did not get
+there are 21,095, so a model reading the result is told what it did not get
 rather than left to assume it got everything.
 
 The registry is the allowlist. `crawl`, `seed`, `export`, `config`, `open` and
