@@ -59,8 +59,12 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz author <slug\|url>` | an Author Central page |
 | `amz deals` | today's deals grid |
 | `amz seed` | enqueue ASINs or URLs into the crawl queue |
-| `amz crawl` | drain the crawl queue into the local store |
-| `amz db query <sql>` | query the optional local DuckDB store |
+| `amz crawl` | drain a frontier into the local store, with `--dry-run` to price it first |
+| `amz query <sql>` | read-only SQL over the local store |
+| `amz find <text>` | full text search over everything crawled |
+| `amz lookup <uri\|asin>` | one stored record, byte for byte, with no network |
+| `amz series <asin>` | the price and rank history this machine has observed |
+| `amz db` | where the store is, what is in it, compact it, delete it |
 | `amz asin <url>...` | read ids out of URLs, ISBNs and `amz:` URIs, offline |
 | `amz open <ASIN\|query>` | open the relevant Amazon page in the browser |
 | `amz robots` | the marketplace's live robots.txt and the group `amz` reads under |
@@ -147,10 +151,18 @@ amz search "mechanical keyboard" -n 25 -o url \
 Collect a category's bestsellers and query the local store:
 
 ```bash
-amz bestsellers electronics -n 100 -o url | amz seed --file -
-amz crawl
-amz db query "select data->'brand'->>'name' brand, count(*) n from products group by brand order by n desc"
+amz crawl --chart bestsellers --category electronics --dry-run   # what it will cost
+amz crawl --chart bestsellers --category electronics
+amz query "select brand, count(*) n from product group by brand order by n desc"
+amz series B084DWG2VQ                                            # every price seen, oldest first
 ```
+
+The store is SQLite, through a pure Go implementation, so there is nothing to
+install alongside the binary and nothing that can be missing. The full record
+lives in a `json` column and the typed columns are an index over it, which means
+`amz lookup` gives back exactly what was stored rather than a reconstruction.
+`price`, `rank` and `chart_entry` are append only, so a later crawl adds to the
+history and can never rewrite it.
 
 ### Global flags
 

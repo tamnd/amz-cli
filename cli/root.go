@@ -150,7 +150,7 @@ func (a *App) Config() amz.Config {
 	if a.DataDir != "" {
 		cfg.DataDir = a.DataDir
 		cfg.CacheDir = a.DataDir + "/cache"
-		cfg.DBPath = a.DataDir + "/amz.duckdb"
+		cfg.DBPath = a.DataDir + "/amz.db"
 	}
 	return cfg
 }
@@ -361,6 +361,10 @@ func Root() *cobra.Command {
 		openCmd(app),
 		seedCmd(app),
 		crawlCmd(app),
+		queryCmd(app),
+		findCmd(app),
+		lookupCmd(app),
+		seriesCmd(app),
 		dbCmd(app),
 		configCmd(app),
 		cacheCmd(app),

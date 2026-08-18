@@ -80,7 +80,7 @@ func DefaultConfig() Config {
 		Timeout:         DefaultTimeout,
 		DataDir:         dataDir(),
 		CacheDir:        cacheDir(),
-		DBPath:          filepath.Join(dataDir(), "amz.duckdb"),
+		DBPath:          filepath.Join(dataDir(), "amz.db"),
 		PAAPIHost:       "webservices.amazon.com",
 		PAAPIRegion:     "us-east-1",
 		PAAPIAccessKey:  os.Getenv("AMZ_PAAPI_ACCESS_KEY"),

@@ -561,6 +561,13 @@ type QueueItem struct {
 	Entity   string `json:"entity"`
 	Priority int    `json:"priority"`
 	Status   string `json:"status"`
+	// Depth is how many rail hops from a seed this item was reached at, which
+	// is what --rail-depth bounds. A seed is 0.
+	Depth int `json:"depth,omitempty"`
+	// Attempts counts how many times this item has been claimed. A crawl that
+	// is killed mid-item leaves it claimed, so the count is the difference
+	// between an item that is hard and an item nobody has tried.
+	Attempts int `json:"attempts,omitempty"`
 }
 
 func dedup(in []string) []string {

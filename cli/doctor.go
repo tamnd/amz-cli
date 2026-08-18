@@ -253,6 +253,12 @@ func doctorStore(ctx context.Context, w io.Writer, app *App) {
 	tw := newDoctorTable(w, "store")
 	defer func() { _ = tw.Flush() }()
 
+	// The engine line is here because the v0.2 store shelled out to a duckdb
+	// binary, which made the README's first line false and made `amz db query`
+	// fail on a machine that had everything else it needed. Saying which engine
+	// is in use, and that it needs nothing installed, is the answer to the
+	// question that finding created.
+	doctorRow(tw, "engine", "sqlite  pure go, no external binary", checkOK, "")
 	doctorRow(tw, "path", cfg.DBPath, checkOK, "")
 	if _, err := os.Stat(cfg.DBPath); err != nil {
 		doctorRow(tw, "database", "not created yet", checkOK, "it appears on the first `amz crawl` or `amz db`")
@@ -278,6 +284,11 @@ func doctorStore(ctx context.Context, w io.Writer, app *App) {
 		parts = append(parts, "empty")
 	}
 	doctorRow(tw, "rows", strings.Join(parts, ", "), checkOK, "")
+	if s.HasFTS() {
+		doctorRow(tw, "full text", "fts5 index present", checkOK, "")
+	} else {
+		doctorRow(tw, "full text", "no fts5 index", checkWarn, "this file was created by a build without fts5, so `amz find` has nothing to read")
+	}
 }
 
 // notIn returns the members of a that are absent from b.

@@ -1,9 +1,9 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/tamnd/amz-cli/amz"
@@ -20,7 +20,16 @@ func openStore(app *App) (*amz.Store, error) {
 func dbCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "db",
-		Short: "Inspect the optional local DuckDB store",
+		Short: "Inspect and maintain the local store",
+		Long: strings.TrimSpace(`
+The store's own housekeeping: where it is, what is in it, compact it, delete it.
+
+The store is SQLite through modernc.org/sqlite, which is a Go implementation and
+not a binding, so there is nothing to install and nothing to be missing. Through
+v0.2.1 this was DuckDB driven by shelling out to a duckdb executable, which meant
+` + "`amz db query`" + ` failed on a machine that had amz and nothing else.
+
+Reading the data is ` + "`amz query`" + `, ` + "`amz find`" + `, ` + "`amz lookup`" + ` and ` + "`amz series`" + `.`),
 	}
 	cmd.AddCommand(
 		&cobra.Command{
@@ -49,27 +58,15 @@ func dbCmd(app *App) *cobra.Command {
 				return nil
 			},
 		},
+		// `amz db query` is `amz query` under its v0.2 name. It is kept as an
+		// alias rather than removed, because it is in people's shell history and
+		// a command that vanishes teaches less than one that says where it went.
 		&cobra.Command{
-			Use:   "query <sql>",
-			Short: "Run a read-only SQL query and print JSON rows",
-			Args:  cobra.ExactArgs(1),
-			RunE: func(cmd *cobra.Command, args []string) error {
-				s, err := openStore(app)
-				if err != nil {
-					return err
-				}
-				rows, err := s.Query(cmd.Context(), args[0])
-				if err != nil {
-					return exit(CodeRuntime, err)
-				}
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				for _, r := range rows {
-					if err := enc.Encode(r); err != nil {
-						return err
-					}
-				}
-				return nil
-			},
+			Use:        "query <sql>",
+			Short:      "Run a read-only SQL query and print JSON rows",
+			Deprecated: "use `amz query`, which is the same command one word shorter",
+			Args:       cobra.ExactArgs(1),
+			RunE:       queryCmd(app).RunE,
 		},
 		&cobra.Command{
 			Use:   "vacuum",
