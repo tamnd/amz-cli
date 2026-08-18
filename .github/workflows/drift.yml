@@ -1,0 +1,90 @@
+name: drift
+
+# Amazon changes its markup without telling anyone, and a parser that quietly
+# reads two fields fewer than it did last month looks exactly like a parser that
+# is fine. This fetches the pages in the golden ledger once a week and fails when
+# one of them yields less than it did on the day it was captured.
+#
+# It is weekly and not nightly on purpose. The ledger is twenty one pages read
+# one at a time at the default 3s pace, and running that every night to catch a
+# change that takes weeks to matter is somebody else's bandwidth spent for our
+# convenience.
+
+on:
+  schedule:
+    # Mondays at 07:00 UTC, off the hour to stay out of the cron rush.
+    - cron: "13 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: drift
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+          cache: true
+
+      - name: build
+        run: go build -o bin/amz ./cmd/amz
+
+      # robots.txt is fetched and honoured here exactly as it is anywhere else.
+      # --no-robots is not on this line and is not going to be: a scheduled job
+      # is the last place a person should be able to hide an override.
+      # It runs once. The report goes to the step summary and to an artifact from
+      # the same run rather than from a second one, because two live runs of a
+      # twenty one page ledger to print the same thing twice is Amazon paying for
+      # our reporting.
+      - name: amz verify --live --strict
+        run: |
+          set -o pipefail
+          ./bin/amz verify --live --strict 2>&1 | tee drift.txt
+
+      - name: report
+        if: always()
+        run: |
+          {
+            echo '### amz verify --live --strict'
+            echo '```'
+            cat drift.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drift
+          path: drift.txt
+          retention-days: 90
+
+      # A failure is a page that yields less than its ledger entry, which is a
+      # parser to fix and not a flake to retry. One open issue at a time: the
+      # title is fixed so a second week of the same drift comments rather than
+      # opening a duplicate.
+      - name: open or update the drift issue
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="drift: a page yields less than its ledger entry"
+          existing=$(gh issue list --state open --search "$title in:title" --json number -q '.[0].number')
+          body=$(printf '%s\n\n%s\n' \
+            '`amz verify --live --strict` failed on the weekly run. A page in the golden ledger returned fewer fields than it did on the day it was captured, which is an extractor to fix rather than a flake to retry.' \
+            "The run, with the per page report in its summary: $RUN")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label drift
+          fi
