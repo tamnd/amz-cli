@@ -272,12 +272,23 @@ func searchAll(cmd *cobra.Command, app *App, c *amz.Client, query string, q amz.
 	})
 	if !app.Quiet {
 		w := cmd.ErrOrStderr()
+		// The union counts every distinct ASIN and the rows are what survived the
+		// sponsored filter, so without this line a run that printed 1,434 rows
+		// under a summary saying 1,508 unique looks like it lost 74 of them.
+		if dropped > 0 {
+			_, _ = fmt.Fprintf(w, "amz: %d sponsored %s left out. pass --include-sponsored to keep them\n",
+				dropped, plural(dropped, "placement", "placements"))
+		}
 		_, _ = fmt.Fprintf(w, "amz: partitioned on %s (%s), %d cells, %d unique %s, %d repeat sightings\n",
 			sum.Plan.Group, sum.Plan.Label, len(sum.Cells), sum.Unique,
 			plural(sum.Unique, "result", "results"), sum.Duplicates)
 		if len(sum.Capped) > 0 {
 			_, _ = fmt.Fprintf(w, "amz: %d %s still hit the ceiling and were not split further, so this union is incomplete: %s\n",
 				len(sum.Capped), plural(len(sum.Capped), "cell", "cells"), strings.Join(sum.Capped, ", "))
+		}
+		if len(sum.Ignored) > 0 {
+			_, _ = fmt.Fprintf(w, "amz: %d %s offered in the sidebar and then served unfiltered, so they read nothing: %s\n",
+				len(sum.Ignored), plural(len(sum.Ignored), "cell was", "cells were"), strings.Join(sum.Ignored, ", "))
 		}
 	}
 	return emitErr(out, ferr)

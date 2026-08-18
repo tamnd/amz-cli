@@ -23,7 +23,7 @@ the same everywhere.
 | `raw` | the underlying HTML/JSON amz fetched |
 
 ```bash
-amz product B084DWG2VQ -o json
+amz product B075F5X8BR -o json
 amz search "usb c cable" -o jsonl
 amz bestsellers electronics -o csv > top.csv
 ```
@@ -37,7 +37,7 @@ nicely by hand and pipes cleanly in a script, with nothing to remember.
 format, so it trims a CSV as readily as a table:
 
 ```bash
-amz product B084DWG2VQ -o csv --fields asin,price,rating
+amz product B075F5X8BR -o csv --fields asin,price,rating
 amz search "usb c cable" --fields asin,title,price -o table
 ```
 
@@ -45,7 +45,7 @@ A name that is not one of the record's table columns is looked up in the record
 itself, so any field is reachable even when the table does not promote it:
 
 ```bash
-amz product B084DWG2VQ -o csv --fields asin,ranks,bullets
+amz product B075F5X8BR -o csv --fields asin,ranks,bullets
 ```
 
 `--no-header` drops the header row from table, CSV, and TSV.
@@ -69,8 +69,8 @@ that want the currency and the string Amazon printed.
 The `envelope` is an ordinary field, so nothing special is needed to read it:
 
 ```bash
-amz product B084DWG2VQ -o jsonl | jq -r '.envelope.via.price'
-amz product B084DWG2VQ -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
+amz product B075F5X8BR -o jsonl | jq -r '.envelope.via.price'
+amz product B075F5X8BR -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
 amz search "usb c cable" -o jsonl | jq -r '.envelope.sources[].url'
 ```
 
@@ -89,7 +89,7 @@ has not migrated yet still has a record that can say where it came from and what
 was looked for and not found.
 
 ```bash
-amz product B084DWG2VQ --flat -o jsonl
+amz product B075F5X8BR --flat -o jsonl
 ```
 
 ## Writing to a file
@@ -98,7 +98,7 @@ amz product B084DWG2VQ --flat -o jsonl
 forces non-TTY formatting):
 
 ```bash
-amz reviews B084DWG2VQ -o csv -O reviews.csv
+amz reviews B075F5X8BR -o csv -O reviews.csv
 ```
 
 ## Exit codes
@@ -113,8 +113,16 @@ branch without parsing output:
 | 2 | usage error (bad flag, unknown marketplace) |
 | 3 | no data (the surface was empty) |
 | 4 | partial (some pages fetched, some failed) |
-| 5 | blocked (Amazon served the bot wall) |
+| 5 | blocked (Amazon served the CAPTCHA) |
+| 6 | interstitial (the bot challenge, still there after the backoff gave up) |
 | 7 | disallowed by robots.txt, and the rule that decided it is named in the message |
 | 8 | robots.txt could not be fetched, so nothing was read |
+| 9 | the surface is behind a sign-in |
 
-See [troubleshooting](/reference/troubleshooting/) for what to do with code 5.
+5 and 6 are separate on purpose, because the two call for different things. A
+CAPTCHA is a decision and an interstitial is a rate, so 6 is worth retrying later
+and 5 is not. 9 is a stop rather than a step: the page is not public, amz carries
+no credentials and wants none, and there is nothing about it this tool is
+entitled to read.
+
+See [troubleshooting](/reference/troubleshooting/) for what to do with each.

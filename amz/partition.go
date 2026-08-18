@@ -2,6 +2,7 @@ package amz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -75,6 +76,10 @@ type PartitionSummary struct {
 	// Capped is the cells that hit the ceiling and were not split further,
 	// which is exactly the list of places this walk is known to be incomplete.
 	Capped []string `json:"capped,omitempty"`
+	// Ignored is the cells whose refinement Amazon did not apply. The sidebar
+	// offered the value, the rh term went out, and the page came back unfiltered,
+	// so the cell read nothing and the ground it was meant to cover is uncovered.
+	Ignored []string `json:"ignored,omitempty"`
 }
 
 // CellResult is one cell of the partition and what it returned.
@@ -82,6 +87,8 @@ type CellResult struct {
 	Cell    string        `json:"cell"`
 	Results int           `json:"results"`
 	Summary SearchSummary `json:"summary"`
+	// Ignored means Amazon served this cell unfiltered, so it read nothing.
+	Ignored bool `json:"ignored,omitempty"`
 }
 
 // defaultPartitionDepth is two. One split is usually not enough on a broad
@@ -203,11 +210,14 @@ func (c *Client) SearchAll(ctx context.Context, query string, q SearchQuery, opt
 		depth = defaultPartitionDepth
 	}
 	seen := map[string]*Card{}
-	err = c.partition(ctx, query, q, groups, plan.Group, depth, nil, map[string]bool{}, seen, &sum)
-	if err != nil {
-		return sum, err
-	}
+	perr := c.partition(ctx, query, q, groups, plan.Group, depth, nil, map[string]bool{}, seen, &sum)
 
+	// The union is emitted whatever the walk did, and the walk's error is
+	// returned after. A partitioned search is fifty searches, and one of them
+	// failing on cell forty is not a reason to throw away the other forty nine.
+	// Returning early here meant a run that had read 263 cards printed none of
+	// them and reported "0 unique results" beside a duplicate count that could
+	// only have come from cards it had already thrown away.
 	asins := make([]string, 0, len(seen))
 	for a := range seen {
 		asins = append(asins, a)
@@ -219,7 +229,7 @@ func (c *Client) SearchAll(ctx context.Context, query string, q SearchQuery, opt
 			return sum, err
 		}
 	}
-	return sum, nil
+	return sum, perr
 }
 
 // partition runs one level of the split and recurses into the cells that are
@@ -268,6 +278,24 @@ func (c *Client) partition(ctx context.Context, query string, q SearchQuery, gro
 			return nil
 		})
 		if err != nil {
+			// Amazon does not reject an rh term it will not honour. It drops the
+			// term and serves the unfiltered grid with a 200, SearchWalk catches
+			// that on the first page, and the cell yields no cards at all. For a
+			// search somebody asked for that is an error and it stays one. Inside
+			// --all it is one cell out of fifty, generated from the sidebar rather
+			// than typed by anybody, and the honest answer is to record which
+			// ground went uncovered and keep reading the rest.
+			//
+			// Measured on 2026-08-18: "usb-c hub" partitioned on p_123 into 50
+			// cells, and cell 41 sub-split on p_n_cpf_labels, which amazon offered
+			// in the sidebar and then ignored. That one cell aborted the union and
+			// the run printed nothing.
+			if errors.Is(err, ErrRefinementIgnored) || errors.Is(err, ErrRefinementUnoffered) {
+				res.Ignored = true
+				sum.Ignored = append(sum.Ignored, name)
+				sum.Cells = append(sum.Cells, res)
+				continue
+			}
 			return err
 		}
 		res.Summary = s

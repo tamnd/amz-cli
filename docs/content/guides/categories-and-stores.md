@@ -35,13 +35,28 @@ a name lifted from a breadcrumb.
 
 ## Brand storefronts
 
-`amz brand` reads a brand's storefront from its slug or a `/stores/` URL:
+`amz brand` takes a bare name, a slug, or a `/stores/` URL:
 
 ```bash
 amz brand anker
-amz brand "https://www.amazon.com/stores/Anker/page/..."
-amz brand anker --featured -o url     # the featured ASINs
+amz brand "https://www.amazon.com/stores/Anker/page/D24FDA17-..."
+amz brand anker --featured            # the featured ASINs
 ```
+
+A bare name costs three extra requests, and it is worth knowing why. Amazon puts
+a brand store at `/stores/<name>/page/<uuid>`, nothing derives that uuid from the
+name, and `/stores/anker` is a hard 404 of 1,147 bytes. There is no lookup
+endpoint and no redirect from the short path.
+
+The only public page that states the uuid is the byline link on a product the
+brand sells. So amz resolves a name the way a person does: search the name, open
+up to three organic results, and follow the byline on the first one whose brand
+folds to the brand that was asked for. Sponsored cards are skipped and the name
+has to match exactly, because handing back a competitor's storefront under the
+name you typed is worse than handing back nothing.
+
+The literal path is tried first, so a slug or a URL that already carries the uuid
+costs one request and resolves nothing.
 
 A `Brand` carries `slug`, `page_id`, `name`, `description`, `logo_url`,
 `banner_url`, `canonical_url`, `featured_asins`, `nav`, and `widgets`. The slug
@@ -107,7 +122,6 @@ vocabulary and are the parameters that page through the rest.
 Walk a brand's featured items into full records:
 
 ```bash
-amz brand anker --featured -o url \
-  | sed 's#.*/dp/##; s#/.*##' \
+amz brand anker --featured --fields asin -o csv --no-header \
   | xargs -I{} amz product {} -o jsonl
 ```

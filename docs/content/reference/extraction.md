@@ -52,12 +52,13 @@ Give the command a page and it reports the read rather than the registry.
 
 ```
 $ amz extraction B075F5X8BR
-product  product  https://www.amazon.com/dp/B075F5X8BR  2359626 bytes
-26 fields set, 2 missed, 261 regions Amazon named that nothing reads
+product  product  https://www.amazon.com/dp/B075F5X8BR  2355440 bytes
+29 fields set, 3 missed, 259 regions Amazon named that nothing reads
 
 not on this page:
   similar_asins  product region "similarities" or "sims-consolidated-2_feature_div" not present on this page
-  reviews        amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only (on /product-reviews/ and /portal/customer-reviews/)
+  reviews        amazon requires a sign-in for the review corpus, and the detail page carries the histogram and the reviews medley only. the total is the ratings count, which is the largest number the page states (have 13 of 21095, on /product-reviews/ and /portal/customer-reviews/, amz why reviews)
+  other_offers   the all-offers panel is built by javascript and states only its own count on the page (have 1 of 2, on /gp/aod/ajax and /gp/offer-listing/, amz why offers)
 ```
 
 A miss is a field the registry declared and the page did not carry, and the
@@ -71,8 +72,8 @@ page", and only the second one tells a caller what to do.
 | `--unread` | the named regions on the page that no field reads |
 | `--family` | limit the ladder report to one family |
 
-`--unread` is the worklist. The detail page measured above carries 290 distinct
-`data-feature-name` regions and amz reads 29 of them. The other 261 are not a
+`--unread` is the worklist. The detail page measured above carries 288 distinct
+`data-feature-name` regions and amz reads 29 of them. The other 259 are not a
 silence, they are the next version's work, and printing them is how the size of
 the gap stays honest.
 

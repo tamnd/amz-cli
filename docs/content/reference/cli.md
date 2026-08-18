@@ -43,9 +43,10 @@ These persistent flags work on every command:
 | `product <ASIN\|url>...` | normalize one or more detail pages | `--depth`, `--variants`, `--with-offers`, `--raw`, `--dry-run` |
 | `price <ASIN\|url>...` | just the current price | |
 | `related <ASIN>` | recommendation cards off a detail page | `--kind` |
-| `reviews <ASIN>` | stream the review corpus | `--sort`, `--stars`, `--verified`, `--with-images`, `--page` |
-| `qa <ASIN>` | question-and-answer pairs | |
-| `offers <ASIN>` | every buying option | `--condition`, `--prime` |
+| `reviews <ASIN>` | the reviews the detail page carries, with the histogram | `--stars`, `--verified`, `--with-images`, `--deep` |
+| `qa <ASIN>` | the answered question count, and any pairs the page carries | |
+| `offers <ASIN>` | the buy box, and the count of the offers behind it | `--condition`, `--prime` |
+| `variants <ASIN\|url>` | the variation matrix, one row per sibling | |
 
 `--depth` takes `quick`, `meta` (the default), `full`, or `deep`, and decides how
 many requests one product record is worth. `deep` prints its bill and asks for
@@ -55,8 +56,14 @@ many requests one product record is worth. `deep` prints its bill and asks for
 
 | Command | Purpose | Notable flags |
 | --- | --- | --- |
-| `search <query>` | stream result cards | `--sort`, `--min-price`, `--max-price`, `--min-rating`, `--prime`, `--brand`, `--department`, `--page`, `--enqueue` |
+| `search <query>` | stream result cards | `--all`, `--sort`, `--price`, `--stars`, `--prime`, `--brand`, `--seller`, `--condition`, `-d`, `--refine`, `--page`, `--max-pages`, `--pages`, `--include-sponsored`, `--enqueue` |
+| `refine <query>` | the refinement groups and values a query offers | |
 | `deals` | today's deals grid | `--min-discount`, `--department` |
+
+`--all` partitions a query and unions the cells to get past the 306 result
+ceiling, `--partition` picks the group to split on and `--partition-depth` how
+many times a capped cell may be split again. Price it with `--dry-run` first.
+[Search](/guides/search/) has the detail.
 
 ## Charts
 
@@ -75,7 +82,8 @@ All five share the same shape: an optional category positional and `--node`.
 | Command | Purpose | Notable flags |
 | --- | --- | --- |
 | `category <node\|url>` | a browse node | `--related`, `--top` |
-| `brand <slug\|url>` | a brand storefront | `--featured` |
+| `tree [node\|url]` | walk the browse node graph outward | `--depth` |
+| `brand <name\|slug\|url>` | a brand storefront, resolved from a bare name through a product byline | `--featured` |
 | `seller <id\|url>` | a seller profile and feedback | |
 | `author <slug\|url>` | an Author Central page | `--books` |
 
@@ -84,8 +92,14 @@ All five share the same shape: an optional category positional and `--node`.
 | Command | Purpose | Notable flags |
 | --- | --- | --- |
 | `seed [ASIN\|url]...` | enqueue work | `--file`, `--entity`, `--priority` |
-| `crawl` | drain the queue into the store | `--kinds` |
-| `db path\|stats\|query\|vacuum\|reset` | the local DuckDB store | |
+| `crawl` | drain the frontier into the store | `--asin`, `--chart`, `--category`, `--kinds`, `--depth`, `--follow-rails`, `--max-attempts` |
+| `db path\|stats\|query\|vacuum\|reset` | the local SQLite store | |
+| `query <sql>` | read-only SQL against the store | |
+| `find <text>` | full text search over the store, no network | |
+| `lookup <uri\|asin>` | one record out of the store, no network | |
+| `graph <uri\|asin>` | traverse the crawled graph outward | `--depth` |
+| `series <asin>` | price and rank history from the store | |
+| `export` | the store as JSONL, turtle or n-triples | `--format` |
 
 ## Provenance and drift
 
@@ -111,6 +125,10 @@ capture ledger is kept.
 | `info` | access tiers, marketplace, config summary |
 | `config path\|show\|init` | view and manage configuration |
 | `cache info\|clear` | inspect or clear the page cache |
+| `doctor` | check the client is honest, the network works and the store is readable |
+| `why [topic]` | why something returns less than you expected, with the measurement |
+| `serve` | the read commands over HTTP |
+| `mcp` | the read commands on stdio as Model Context Protocol |
 | `completion` | shell completion script |
 
 `asin` never touches the network. With no `-o` it prints one bare ASIN per line,
