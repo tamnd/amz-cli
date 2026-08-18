@@ -60,6 +60,8 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz deals` | today's deals grid |
 | `amz seed` | enqueue ASINs or URLs into the crawl queue |
 | `amz crawl` | drain a frontier into the local store, with `--dry-run` to price it first |
+| `amz graph <uri\|asin>` | walk the edges a crawl recorded, outward from one node |
+| `amz export` | the whole store as JSONL, turtle or n-triples |
 | `amz query <sql>` | read-only SQL over the local store |
 | `amz find <text>` | full text search over everything crawled |
 | `amz lookup <uri\|asin>` | one stored record, byte for byte, with no network |
@@ -163,6 +165,56 @@ lives in a `json` column and the typed columns are an index over it, which means
 `amz lookup` gives back exactly what was stored rather than a reconstruction.
 `price`, `rank` and `chart_entry` are append only, so a later crawl adds to the
 history and can never rewrite it.
+
+### The graph
+
+A crawl records more than records. One detail page names a brand, a seller, a
+fulfiller, a parent ASIN, six siblings, four browse nodes, three sales ranks,
+eight review authors and sixty related products, and all of those come free with
+a page that was fetched for its price. They are stored as edges, and `amz graph`
+walks them.
+
+```bash
+amz graph B084DWG2VQ                          # one hop out, organic only
+amz graph B084DWG2VQ --depth 2 --symmetric    # two hops, following variants both ways
+amz graph B084DWG2VQ --predicate sold_by      # just the merchant
+amz graph B084DWG2VQ --edges -o jsonl         # the claims rather than the nodes
+amz graph --predicates                        # the sixteen, and what each one carries
+```
+
+The vocabulary is sixteen predicates and it is closed, because an open one means
+every consumer has to handle a relationship it has never seen and by the third
+one nobody does. An edge is a claim rather than a pair of nodes: it carries the
+surface that asserted it and the time that surface was read, since a seller wins
+the buy box for an afternoon and a rail is regenerated per request.
+
+Cycles are normal, so the walk is visited-set based and `--depth` defaults to 1.
+Paid placements are stored, flagged, and excluded from the walk unless you pass
+`--include-sponsored`. Nothing here fetches: `amz graph` reads the store, and a
+node with no edges was either never crawled or crawled without `--follow-rails`.
+
+### Export
+
+```bash
+amz export                                    # JSONL, header line first
+amz export --format turtle --with-text        # RDF, schema.org where it fits
+amz export --format ntriples > store.nt
+```
+
+JSONL keeps every field, including the ones with no schema.org term, and leads
+with a header line carrying the tool, the version and the marketplace so a file
+that gets piped, split and reassembled still says where it came from.
+
+Three things are worth knowing before loading the RDF somewhere. Every offer
+carries `amzv:retrievedAt`, without exception and without a flag, because a price
+without a timestamp is not a fact. `amzv:distributionDerived` is on every rating
+histogram, because the bucket counts are reconstructed from the integer
+percentages Amazon publishes. An organic recommendation is `schema:isRelatedTo`
+and a paid one is `amzv:sponsoredPlacement`, never both and never the same term.
+
+Product descriptions and review text are only included with `--with-text`, for
+the reason in the access tiers section below: a local store of prices is your own
+measurements, and a local store of Amazon's prose is a copy of Amazon's prose.
 
 ### Global flags
 

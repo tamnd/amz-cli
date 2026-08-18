@@ -398,6 +398,13 @@ func seedFrontier(ctx context.Context, cmd *cobra.Command, s *amz.Store, c *amz.
 			if err := s.PutChartEntry(ctx, e); err != nil {
 				return err
 			}
+			// charted_in is an edge and not a field, which is the point of
+			// 04_graph.md section 4. A product that was number three in
+			// Electronics last Tuesday still was, and a rank column would
+			// overwrite that on the next crawl.
+			if err := s.PutEdges(ctx, amz.ChartEdges([]amz.BestsellerEntry{e})); err != nil {
+				return err
+			}
 			return add(c.ProductURL(e.ASIN))
 		})
 		if err != nil {
@@ -409,6 +416,9 @@ func seedFrontier(ctx context.Context, cmd *cobra.Command, s *amz.Store, c *amz.
 			return exit(codeFor(err), err)
 		}
 		if err := s.PutCategory(ctx, cat); err != nil {
+			return exit(CodeRuntime, err)
+		}
+		if err := s.PutEdges(ctx, amz.CategoryEdges(cat)); err != nil {
 			return exit(CodeRuntime, err)
 		}
 		for _, a := range cat.TopASINs {
@@ -423,11 +433,25 @@ func seedFrontier(ctx context.Context, cmd *cobra.Command, s *amz.Store, c *amz.
 
 	if o.search != "" {
 		q := amz.SearchQuery{Limit: o.limit}
-		err := c.Search(ctx, o.search, q, func(card amz.Card) error {
-			if card.Sponsored && !o.sponsored {
-				return nil
+		// SearchWalk rather than Search, because found_by needs the page and
+		// not just the card: position is where in the whole result set the
+		// product sat and page is which request found it, and with a page size
+		// that changes from sixteen to twenty-four once a department is applied,
+		// neither is derivable from the other.
+		key := amz.SearchKey(o.search, q, c.Marketplace())
+		_, err := c.SearchWalk(ctx, o.search, q, func(sp amz.SearchPage) error {
+			if err := s.PutEdges(ctx, amz.SearchEdges(sp, c.Marketplace().Slug, key)); err != nil {
+				return err
 			}
-			return add(c.ProductURL(card.ASIN))
+			for _, card := range sp.Cards {
+				if card.Sponsored && !o.sponsored {
+					continue
+				}
+				if err := add(c.ProductURL(card.ASIN)); err != nil {
+					return err
+				}
+			}
+			return nil
 		})
 		if err != nil {
 			return exit(codeFor(err), err)
@@ -569,7 +593,10 @@ func crawlOne(ctx context.Context, s *amz.Store, c *amz.Client, it amz.QueueItem
 			if !o.withText {
 				r.Text, r.Title = "", ""
 			}
-			return s.PutReview(ctx, r)
+			if err := s.PutReview(ctx, r); err != nil {
+				return err
+			}
+			return s.PutEdges(ctx, amz.ReviewEdges(r, "s15"))
 		})
 	case amz.EntityQA:
 		err := c.FetchQA(ctx, asin, func(q amz.QA) error { return s.PutQA(ctx, q) })
@@ -579,7 +606,10 @@ func crawlOne(ctx context.Context, s *amz.Store, c *amz.Client, it amz.QueueItem
 		return nil, err
 	case amz.EntityOffers:
 		return nil, c.FetchOffers(ctx, asin, amz.OfferQuery{}, func(l amz.OfferListing) error {
-			return s.PutOfferListing(ctx, l)
+			if err := s.PutOfferListing(ctx, l); err != nil {
+				return err
+			}
+			return s.PutEdges(ctx, amz.OfferEdges(l))
 		})
 	default:
 		// Rails ride along on the detail page, so following them costs nothing
@@ -607,6 +637,16 @@ func crawlOne(ctx context.Context, s *amz.Store, c *amz.Client, it amz.QueueItem
 			op = op.Without("description", "reviews")
 		}
 		if err := s.PutProductWith(ctx, prod, op); err != nil {
+			return nil, err
+		}
+		// The edges are the free half of this fetch. The page has already been
+		// paid for and it names a brand, a seller, a fulfiller, a parent ASIN,
+		// its siblings, its browse nodes, its ranks and up to sixty related
+		// products, so not writing them would mean throwing away most of what
+		// the request bought. Sponsored rails are written with the flag set
+		// rather than dropped, because "how much of this page was advertising"
+		// is a question worth being able to answer later.
+		if err := s.PutEdges(ctx, amz.ProductEdges(prod)); err != nil {
 			return nil, err
 		}
 		return railURLs(c, prod, o), nil
