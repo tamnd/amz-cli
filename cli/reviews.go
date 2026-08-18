@@ -72,7 +72,7 @@ func reviewsCmd(app *App) *cobra.Command {
 				_, _ = fmt.Fprintf(w, "amz: %d of %d reviews filtered out here, not by amazon: the filter applies to the ones on the page\n",
 					n, len(p.ReviewSample))
 			}
-			noteMisses(w, p, "reviews")
+			noteMisses(app, w, p, "reviews")
 			return emitErr(out, nil)
 		},
 	}
@@ -188,7 +188,7 @@ func qaCmd(app *App) *cobra.Command {
 				}
 			}
 			w := cmd.ErrOrStderr()
-			noteMisses(w, p, "questions")
+			noteMisses(app, w, p, "questions")
 			if out.Count() == 0 {
 				if p.Questions == nil {
 					_, _ = fmt.Fprintln(w, "amz: this product has no ask region at all, which is now the usual case")
@@ -234,7 +234,7 @@ func offersCmd(app *App) *cobra.Command {
 					return err
 				}
 			}
-			noteMisses(w, p, "other_offers")
+			noteMisses(app, w, p, "other_offers")
 			if out.Count() == 0 {
 				return exit(CodeNoData, fmt.Errorf("this listing has no buy box"))
 			}
@@ -260,7 +260,14 @@ func keepOffer(o amz.OfferListing, q amz.OfferQuery) bool {
 // always a statement about the page that was actually read. When Amazon opens a
 // surface back up the miss stops being recorded and the note stops being
 // printed, with no code change and no stale sentence left behind.
-func noteMisses(w io.Writer, p amz.Product, field string) {
+// noteMisses prints what the page did not give up, and records the envelope it
+// read it from.
+//
+// The printing is for a person at a terminal and the recording is for the
+// server, which has no stderr to print to and needs the same facts on the wire.
+// Both come off the envelope rather than off a string written here.
+func noteMisses(app *App, w io.Writer, p amz.Product, field string) {
+	app.observe(p.Envelope)
 	for _, m := range p.Envelope.Missed {
 		if m.Field != field {
 			continue

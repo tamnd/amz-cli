@@ -349,10 +349,12 @@ func refineCmd(app *App) *cobra.Command {
 			}
 			defer func() { _ = out.Close() }()
 
-			groups, ferr := c.Refinements(cmd.Context(), query, q)
+			sp, ferr := c.FetchSearchPage(cmd.Context(), query, q, 1)
 			if ferr != nil {
 				return exit(codeFor(ferr), ferr)
 			}
+			app.observe(sp.Envelope)
+			groups := sp.Refinements
 			values := 0
 			for _, g := range groups {
 				values += len(g.Values)

@@ -72,6 +72,11 @@ func (e *ExitError) Error() string {
 
 func (e *ExitError) Unwrap() error { return e.Err }
 
+// ExitCode reports the process exit code this failure carries. The servers in
+// amz map it to an HTTP status through this method rather than by importing
+// package cli, which they must not do.
+func (e *ExitError) ExitCode() int { return e.Code }
+
 func exit(code int, err error) error { return &ExitError{Code: code, Err: err} }
 
 // codeFor maps a library error to its process exit code.
@@ -134,7 +139,20 @@ type App struct {
 
 	// Out is where rendered records go (cobra's stdout, or a file for -O).
 	Out io.Writer
+
+	// observed collects the envelope of a page whose rows do not each carry one.
+	//
+	// price, offers, reviews, variants, refine and tree are row shaped. A review
+	// row deliberately has no envelope: the provenance belongs to the page, and
+	// repeating it on every one of eight lines would be noise. At a terminal
+	// that costs nothing, because those commands print what they missed on
+	// stderr. Over the wire there is no stderr, so the server reads these back
+	// instead and a model that gets 2 reviews is still told there are 284,512.
+	observed []amz.Envelope
 }
+
+// observe records a page envelope for a command that emits rows.
+func (a *App) observe(env amz.Envelope) { a.observed = append(a.observed, env) }
 
 // Config builds an amz.Config from the resolved global flags.
 func (a *App) Config() amz.Config {
@@ -276,6 +294,16 @@ func emitErr(out *Output, fetchErr error) error {
 
 // Root builds the full command tree.
 func Root() *cobra.Command {
+	cmd, _ := newRoot()
+	return cmd
+}
+
+// newRoot builds the tree and hands back the App it wired.
+//
+// The App is what the server needs after a run: the six row shaped commands put
+// their page envelope on it, and there is no other way to reach it once the
+// records have been written to a buffer.
+func newRoot() (*cobra.Command, *App) {
 	app := &App{}
 	root := &cobra.Command{
 		Use:           "amz",
@@ -363,6 +391,8 @@ func Root() *cobra.Command {
 		crawlCmd(app),
 		graphCmd(app),
 		exportCmd(app),
+		serveCmd(app),
+		mcpCmd(app),
 		queryCmd(app),
 		findCmd(app),
 		lookupCmd(app),
@@ -381,7 +411,7 @@ func Root() *cobra.Command {
 		doctorCmd(app),
 	)
 	annotateErrors(root)
-	return root
+	return root, app
 }
 
 // annotateErrors wraps every command in the tree so a failure carries its exit
