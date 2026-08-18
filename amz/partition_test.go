@@ -31,7 +31,7 @@ func partitionServer(t *testing.T) (*Client, *int) {
 	hits := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/robots.txt" {
-			fmt.Fprint(w, "User-agent: *\nAllow: /\n")
+			_, _ = fmt.Fprint(w, "User-agent: *\nAllow: /\n")
 			return
 		}
 		hits++
@@ -50,7 +50,7 @@ func partitionServer(t *testing.T) (*Client, *int) {
 			start = 101
 		}
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, refinedSearchHTML(start, applied))
+		_, _ = fmt.Fprint(w, refinedSearchHTML(start, applied))
 	}))
 	t.Cleanup(srv.Close)
 
