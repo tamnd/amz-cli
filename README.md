@@ -464,6 +464,10 @@ Fewer fields than the ledger is a regression and fails under `--strict`.
 More unread regions is Amazon adding a section, which is worth knowing and is not a failure, because a tool that cried failure every time a marketing widget appeared would be ignored inside a month.
 Without `--live` it reads only pages already in the cache, so a curious run costs Amazon nothing.
 
+`amz verify --live --strict` also runs weekly in CI, on a Monday, and opens an issue when a page yields less than its ledger entry.
+Weekly and not nightly, because the ledger is twenty one pages read one at a time at the default pace, and running that every night to catch a change that takes weeks to matter is somebody else's bandwidth spent on our convenience.
+That job honours `robots.txt` like everything else here, and `--no-robots` is not on its command line and is not going to be: a scheduled job is the last place a person should be able to hide an override.
+
 The ledger found two real defects on its first pass: four of Amazon's own canonical URL forms resolved to no known surface, and chart pages were recording fifty entries beside an envelope claiming nothing had been read.
 
 `amz agent-map` prints Amazon's own interface map for a page, exactly as served.
@@ -503,9 +507,15 @@ explains what happened and what to do about it.
 ```
 cmd/amz/    thin main entry point
 cli/        cobra commands and output rendering
-amz/        HTTP client, parsers, models, and marketplace table
+amz/        HTTP client, parsers, models, marketplace table, and the two servers
+pkg/        the importable parts: asin, uri, graph, rdf
 docs/       documentation site (Hugo, tago-doks theme)
 ```
+
+The dependencies point one way. `pkg/*` imports nothing from `amz/`, and `amz/`
+imports nothing from `cli/`. That is why `amz serve` and `amz mcp` live in `amz/`
+and know nothing about cobra, while the tool registry lives in `cli/` and knows
+nothing about HTTP.
 
 ```bash
 make build   # ./bin/amz
@@ -520,11 +530,17 @@ Requires Go 1.26+.
 Push a version tag and GitHub Actions runs GoReleaser:
 
 ```bash
-git tag -a v0.2.0 -m "v0.2.0"
+git tag -a v0.3.0 -m "v0.3.0"
 git push --tags
 ```
 
-The image tag carries no `v` prefix (`ghcr.io/tamnd/amz:0.2.0`).
+Ten targets across five operating systems, a multi-arch container image, deb, rpm
+and apk packages, a Homebrew cask, a Scoop manifest, an SBOM per archive and a
+keyless cosign signature over `checksums.txt`. The image tag carries no `v`
+prefix (`ghcr.io/tamnd/amz:0.3.0`).
+
+What changed in each release, and how to move a script from one to the next, is
+in [CHANGELOG.md](./CHANGELOG.md).
 
 ## License
 

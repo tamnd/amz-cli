@@ -53,13 +53,14 @@ archives:
     files:
       - LICENSE
       - README.md
+      - CHANGELOG.md
 
 nfpms:
   # One nfpm definition emits the deb, rpm, and apk for every Linux build. amz
   # is a user command, not a daemon, so there is no unit file and no
-  # postinstall: the package is the binary and its license. DuckDB is an
-  # optional runtime helper for the local store, not a hard dependency, so it
-  # is suggested, not required.
+  # postinstall: the package is the binary and its license. It recommends
+  # nothing, because since v0.3.0 the store is pure Go SQLite and there is no
+  # external binary the tool needs on PATH.
   - id: linux-packages
     package_name: amz
     file_name_template: "{{ .ConventionalFileName }}"
@@ -74,16 +75,9 @@ nfpms:
       - apk
     bindir: /usr/bin
     section: utils
-    recommends:
-      - duckdb
     contents:
       - src: ./LICENSE
         dst: /usr/share/doc/amz/LICENSE
-    overrides:
-      apk:
-        recommends: []
-      rpm:
-        recommends: []
 
 dockers_v2:
   # One multi-platform image built with buildx. GoReleaser stages the prebuilt
