@@ -132,7 +132,7 @@ is Prime. Sponsored placements are dropped by default and the count is reported,
 so you always know how many were left out. Refine and choose your output:
 
 ```bash
-amz search "mechanical keyboard" --price 50-150 --prime -o jsonl
+amz search "mechanical keyboard" --price 50-150 -o jsonl
 amz search "mechanical keyboard" --sort price-asc -o table
 amz search "mechanical keyboard" --brand Logitech --stars 4
 ```

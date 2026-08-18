@@ -56,7 +56,7 @@ many requests one product record is worth. `deep` prints its bill and asks for
 
 | Command | Purpose | Notable flags |
 | --- | --- | --- |
-| `search <query>` | stream result cards | `--all`, `--sort`, `--price`, `--stars`, `--prime`, `--brand`, `--seller`, `--condition`, `-d`, `--refine`, `--page`, `--max-pages`, `--pages`, `--include-sponsored`, `--enqueue` |
+| `search <query>` | stream result cards | `--all`, `--sort`, `--price`, `--stars`, `--brand`, `--seller`, `--condition`, `-d`, `--refine`, `--page`, `--max-pages`, `--pages`, `--include-sponsored`, `--enqueue` |
 | `refine <query>` | the refinement groups and values a query offers | |
 | `deals` | today's deals grid | `--min-discount`, `--department` |
 

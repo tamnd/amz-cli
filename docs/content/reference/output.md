@@ -4,8 +4,15 @@ description: "Every output format amz can render, plus field projection and temp
 weight: 20
 ---
 
-Every command streams its records through one renderer, so the output flags work
-the same everywhere.
+Every command that emits records streams them through one renderer, so the output
+flags work the same everywhere.
+
+Two commands do not, on purpose. `amz query` prints the rows SQLite returned as
+JSON, because the columns are whatever the statement selected and there is no
+record type to project. `amz lookup` prints the stored JSON byte for byte, which
+is the entire point of it: reformatting would make it a reconstruction rather
+than a copy. Both ignore `-o`, `--fields` and `--template`, and both say so in
+their own `--help`.
 
 ## Choosing a format
 

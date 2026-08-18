@@ -27,19 +27,38 @@ while read asin; do amz price "$asin" -o jsonl; done < watchlist.txt \
   | jq -r '[now|todate, .asin, .price.value] | @csv' >> basket_log.csv
 ```
 
-## Find the cheapest offer for an ASIN
+## Read the buy box and how many offers sit behind it
 
-The Buy Box is not always the cheapest. List every offer and sort:
+The other sellers' rows are drawn by JavaScript and the endpoint behind them
+answers 404 to a direct request, so `amz offers` returns the buy box winner and
+the count rather than a list. Take both together:
 
 ```bash
 amz offers B075F5X8BR -o jsonl \
-  | jq -s 'sort_by(.price) | .[0] | {price, condition, seller_name, is_buybox}'
+  | jq -c '{price, currency, condition, seller_name, fulfilled_by, is_buybox}'
 ```
 
-Or only new, Prime-fulfilled options:
+```json
+{"price":209378,"currency":"VND","condition":"","seller_name":"Amazon.com","fulfilled_by":"Amazon.com","is_buybox":true}
+```
+
+The count is on the product record, beside a `complete` flag that is never
+omitted so a partial answer cannot be mistaken for a whole one:
 
 ```bash
-amz offers B075F5X8BR --condition new --prime -o jsonl | jq -s 'min_by(.price)'
+amz product B075F5X8BR -o json | jq -c '.[0].other_offers'
+```
+
+```json
+{"loaded":1,"total_count":2,"complete":false,"url":"https://www.amazon.com/gp/offer-listing/B075F5X8BR/ref=dp_olp_NEW_mbc?ie=UTF8&condition=NEW"}
+```
+
+Two offers exist, amz holds one, and it says so. `amz why offers` has the
+measurement and the date. `--condition` and `--prime` still filter what comes
+back, which matters when the buy box is a used copy and you only want new:
+
+```bash
+amz offers B075F5X8BR --condition new --prime -o jsonl
 ```
 
 ## Enrich a chart into full product records
@@ -99,7 +118,7 @@ for a in B075F5X8BR B09B8V1LZ3; do amz product "$a" -o jsonl; done \
 Search with refinements, then pick the highest-rated card under a price:
 
 ```bash
-amz search "mechanical keyboard" --stars 4 --prime -n 100 -o jsonl \
+amz search "mechanical keyboard" --stars 4 -n 100 -o jsonl \
   | jq -s 'map(select(.price.value < 120)) | sort_by(-.rating) | .[0:5]'
 ```
 

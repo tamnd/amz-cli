@@ -28,8 +28,8 @@ is debt: it works now and says nothing about tomorrow.
 ```
 $ amz extraction
 FAMILY   REGION  PAYLOAD  ATTR  SELECTOR  TOTAL
-product  25      0        1     1         27
-search   17      0        4     0         21
+product  25      0        4     1         30
+search   19      0        4     1         24
 chart    0       1        4     4         9
 browse   3       1        6     11        21
 store    2       7        5     0         14

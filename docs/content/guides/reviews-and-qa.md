@@ -85,6 +85,22 @@ amz reviews B075F5X8BR --stars 1 --verified -o csv > one_star.csv
 amz reviews B075F5X8BR --with-images -n 20
 ```
 
+`--sort` orders what came back, and it is local too. It takes `recent` or
+`helpful`, and it reorders the medley rather than asking Amazon for a different
+one, because the surface that takes a sort parameter is the corpus and the corpus
+needs a session. A review whose date amz could not parse sorts last under
+`recent` rather than to the epoch, so an unparsed date does not masquerade as the
+oldest review on the page.
+
+```bash
+amz reviews B075F5X8BR --sort recent
+amz reviews B075F5X8BR --sort helpful -o jsonl | jq -r '"\(.helpful_votes)\t\(.title)"'
+```
+
+The field is `rating`, not `stars`. `--stars` is the flag that filters on it, and
+`jq 'select(.stars <= 2)'` matches every review rather than none, because `null`
+compares less than a number in jq.
+
 ### Just the URL
 
 To open the review pages yourself, render the URL:

@@ -40,7 +40,8 @@ A product record names every field the page had:
 | `other_offers` | how many other buying options the page claims |
 | `rating`, `ratings_count`, `reviews_count` | social proof |
 | `distribution` | the five bucket star histogram |
-| `reviews`, `questions` | what the page says exists, not what amz holds |
+| `reviews`, `questions` | how many exist, not what amz holds: `loaded`, `total_count`, `complete` |
+| `review_sample`, `qa_sample` | the reviews and pairs amz does hold, which is what the detail page embedded |
 | `bought_past_month`, `bought_past_month_n` | the "N+ bought in past month" line, and the parse of it |
 | `description`, `bullets` | marketing copy |
 | `details` | the technical details table, as key and value pairs |
@@ -144,14 +145,19 @@ amz product B075F5X8BR --depth quick     # cheapest useful read
 amz product B075F5X8BR --depth deep --yes
 ```
 
-## Offers alongside
+## The buy box alongside
 
-`--with-offers` attaches the buying options to the product fetch, so you get the
-detail page and the offer list in one go:
+`--with-offers` emits the buy box as its own offer row beside the product, so a
+pipeline that wants both shapes gets them from one fetch:
 
 ```bash
 amz product B075F5X8BR --with-offers -o json
 ```
+
+It is the buy box and not a list of every seller. The other sellers' rows are
+drawn by JavaScript and the endpoint behind them answers 404 to a direct
+request, so what the page states is a count, and that count is in
+`other_offers`. See [offers](/guides/offers-and-charts/) for the measurement.
 
 ## The raw page
 
