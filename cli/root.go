@@ -361,6 +361,8 @@ func Root() *cobra.Command {
 		openCmd(app),
 		seedCmd(app),
 		crawlCmd(app),
+		graphCmd(app),
+		exportCmd(app),
 		queryCmd(app),
 		findCmd(app),
 		lookupCmd(app),

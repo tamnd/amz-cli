@@ -527,20 +527,6 @@ ON CONFLICT(src, predicate, dst, via) DO UPDATE SET sponsored=excluded.sponsored
 	return err
 }
 
-// Edge is one assertion in the graph, with the surface that made it and when.
-type Edge struct {
-	Src       string `json:"src"`
-	Predicate string `json:"predicate"`
-	Dst       string `json:"dst"`
-	// Via is the surface id that asserted this edge. It is part of the key.
-	Via string `json:"via,omitempty"`
-	// Sponsored is never omitempty. An advertised relationship and an organic
-	// one are different data, and the default traversal excludes the first.
-	Sponsored  bool      `json:"sponsored"`
-	Position   int       `json:"position,omitempty"`
-	ObservedAt time.Time `json:"observed_at"`
-}
-
 // Observation is one point in a price or rank series.
 type Observation struct {
 	At       string  `json:"at"`
