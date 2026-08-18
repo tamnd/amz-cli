@@ -352,18 +352,29 @@ func (c *Client) ResolveRefinements(ctx context.Context, query string, q SearchQ
 // than of the page number, so paging to twenty to collect filters would be
 // nineteen requests spent on the same answer.
 func (c *Client) Refinements(ctx context.Context, query string, q SearchQuery) ([]RefineGroup, error) {
-	if q.NeedsResolve() {
-		resolved, err := c.ResolveRefinements(ctx, query, q)
-		if err != nil {
-			return nil, err
-		}
-		q = resolved
-	}
-	sp, err := c.fetchSearchPage(ctx, query, q, 1)
+	sp, err := c.FetchSearchPage(ctx, query, q, 1)
 	if err != nil {
 		return nil, err
 	}
 	return sp.Refinements, nil
+}
+
+// FetchSearchPage reads one result page and returns it whole, envelope included.
+//
+// Refinements throws everything but the sidebar away, which is the right shape
+// for a caller that wants the vocabulary. It is the wrong shape for `amz refine`
+// over the wire, where the envelope is the only thing saying which surface the
+// vocabulary came off and when, so this returns the page and lets the caller
+// pick.
+func (c *Client) FetchSearchPage(ctx context.Context, query string, q SearchQuery, page int) (SearchPage, error) {
+	if q.NeedsResolve() {
+		resolved, err := c.ResolveRefinements(ctx, query, q)
+		if err != nil {
+			return SearchPage{}, err
+		}
+		q = resolved
+	}
+	return c.fetchSearchPage(ctx, query, q, page)
 }
 
 // Departments lists the search scopes this marketplace offers.

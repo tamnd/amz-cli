@@ -78,6 +78,7 @@ func treeCmd(app *App) *cobra.Command {
 					continue
 				}
 				fetched++
+				app.observe(cat.Envelope)
 				id := firstNonEmpty(cat.CanonicalNode, cat.NodeID, v.id)
 				if seen[id] {
 					continue

@@ -44,6 +44,7 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz price <ASIN\|url>...` | current price only |
 | `amz related <ASIN>` | recommendation cards from a product page |
 | `amz search <query>` | catalog search result cards |
+| `amz refine <query>` | the refinement groups and values a query offers, with their filter tokens |
 | `amz reviews <ASIN>` | the reviews the detail page carries, with the histogram; `--stars`, `--sort` |
 | `amz qa <ASIN>` | the answered question count, and the pairs when the page carries them |
 | `amz offers <ASIN>` | the buy box winner and the count of the offers behind it |
@@ -54,6 +55,7 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz wished [category]` | most wished-for items |
 | `amz gifted [category]` | most gifted items |
 | `amz category <node_id\|url>` | a browse node: name, related nodes, shelves, top ASINs |
+| `amz tree [node_id\|url]` | the browse node graph outward from a node, one request per node |
 | `amz brand <slug\|url>` | a brand storefront |
 | `amz seller <id\|url>` | a third-party seller profile and rating breakdown |
 | `amz author <slug\|url>` | an Author Central page |
@@ -69,6 +71,8 @@ Shell completion is built in: `amz completion bash|zsh|fish|powershell`.
 | `amz db` | where the store is, what is in it, compact it, delete it |
 | `amz asin <url>...` | read ids out of URLs, ISBNs and `amz:` URIs, offline |
 | `amz open <ASIN\|query>` | open the relevant Amazon page in the browser |
+| `amz serve` | the read commands over HTTP, envelope and all |
+| `amz mcp` | the same tools over stdio, for a model |
 | `amz robots` | the marketplace's live robots.txt and the group `amz` reads under |
 | `amz robots check <url>...` | ask robots.txt about a URL and print the rule that decided it |
 | `amz surfaces` | every Amazon surface `amz` knows, with what was measured about it |
@@ -215,6 +219,46 @@ and a paid one is `amzv:sponsoredPlacement`, never both and never the same term.
 Product descriptions and review text are only included with `--with-text`, for
 the reason in the access tiers section below: a local store of prices is your own
 measurements, and a local store of Amazon's prose is a copy of Amazon's prose.
+
+### The server
+
+The same read commands, over HTTP for a script and over stdio for a model.
+
+```bash
+amz serve                                     # 127.0.0.1:8787
+amz serve --tools                             # the registry, without starting anything
+curl localhost:8787/v1/tools                  # the 25 tools and their arguments
+curl 'localhost:8787/v1/tools/reviews?asin=B084DWG2VQ&stars=5&verified'
+curl -X POST localhost:8787/v1/tools/search -d '{"query":"usb-c hub","brand":"Anker","sort":"price-asc"}'
+amz mcp                                       # the same tools as Model Context Protocol
+```
+
+Neither one reimplements anything. A tool call builds an argv and re-enters the
+same command tree the terminal uses, so `amz search` over HTTP and `amz search`
+in a shell cannot answer differently, and a parser fix reaches all three front
+doors at once. The server answers one call at a time for the same reason
+`--workers` is gone: two requests in flight make `--rate` a lie by a factor of
+two.
+
+Every response carries the envelope, and `missed` is in it whether or not it has
+anything in it. An empty list means the tool looked and there was nothing more.
+A missing key would mean the server forgot to say, and a caller cannot tell those
+apart afterwards. This is the part that matters over the wire: `reviews` returns
+the handful of reviews the detail page carries along with a `missed` entry saying
+there are 284,512, so a model reading the result is told what it did not get
+rather than left to assume it got everything.
+
+The registry is the allowlist. `crawl`, `seed`, `export`, `config`, `open` and
+`cache clear` are not in it, which makes them unreachable rather than refused:
+there is no name a caller can send that resolves to one. `--no-robots` is an
+argument of no tool, the argv is built from a fixed table, and positionals go
+after `--` so no value can turn into a flag. Ignoring robots.txt is a decision a
+person makes for one run at their own terminal, not something a tool call
+inherits.
+
+`amz serve` binds loopback and refuses a public address without `--yes`, because
+an open port on this is somebody else's rate limit and somebody else's IP in
+Amazon's logs. It carries no session and wants none.
 
 ### Global flags
 

@@ -85,7 +85,7 @@ func productCmd(app *App) *cobra.Command {
 					if o := p.BuyBoxListing(); o != nil {
 						_ = out.Emit(offerRow(*o))
 					}
-					noteMisses(cmd.ErrOrStderr(), p, "other_offers")
+					noteMisses(app, cmd.ErrOrStderr(), p, "other_offers")
 				}
 			}
 			if out.Count() == 0 {
@@ -139,6 +139,7 @@ func variantsCmd(app *App) *cobra.Command {
 			if ferr != nil {
 				return exit(codeFor(ferr), ferr)
 			}
+			app.observe(p.Envelope)
 			out, err := app.Output()
 			if err != nil {
 				return err
@@ -255,6 +256,7 @@ func priceCmd(app *App) *cobra.Command {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "amz: %s: %v\n", a, err)
 					continue
 				}
+				app.observe(p.Envelope)
 				_ = out.Emit(priceRow(p))
 			}
 			if out.Count() == 0 {
