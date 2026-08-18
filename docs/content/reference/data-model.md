@@ -39,6 +39,7 @@ about the rest of the record.
 | `disagree` | []Disagreement | fields two sources answered differently |
 | `unread` | []string | named regions on the page nothing read |
 | `robots` | RobotsNote | present only when a robots.txt rule was involved |
+| `agent_map` | raw JSON | Amazon's own interface map for the page, recorded verbatim and never trusted |
 | `extra` | map | payloads the page shipped that no field reads yet, verbatim |
 | `retrieved_at` | timestamp | the newest source's time |
 
@@ -246,12 +247,28 @@ a corrupted dataset without knowing it.
 ## Review
 
 `amz reviews` returns one `Review` per review: `review_id`, `asin`, `author` as
-a Ref, `reviewer_name`, `rating`, `title`, `text`, `date` as a Date, `country`,
-`verified_purchase`, `helpful_votes`, `images`, `variant_attrs`, `url`.
+a Ref, `reviewer_id`, `reviewer_name`, `rating`, `title`, `text`, `date` as a
+Date, `country`, `verified_purchase`, `helpful_votes`, `images`,
+`variant_attrs`, `url`.
 
-Amazon requires a sign-in for the review corpus. A product record therefore
-carries the rating, the count and the histogram, and no reviews, and it says so
-with a `missed` entry naming both review surfaces. That entry is what tells a
+The star rating is `rating` and not `stars`, on the review as on the product, so
+one name means one thing across the whole model. `--stars` is the flag that
+filters on it.
+
+Amazon requires a sign-in for the review corpus, so what is public is the
+histogram plus the medley of about a dozen reviews the detail page embeds. A
+product record carries `rating`, `ratings_count`, `distribution`, the medley
+itself in `review_sample`, a `reviews` Conn saying how many of how many that is,
+and a `missed` entry carrying `have`, `total` and both review surfaces:
+
+```json
+"reviews": {"loaded": 13, "total_count": 21095, "complete": false,
+            "url": "https://www.amazon.com/product-reviews/B075F5X8BR"}
+```
+
+The array is `review_sample` and the count is `reviews`, which reads backwards
+until you notice that every partial collection in this model is a Conn under the
+name of the thing and the rows sit beside it. That entry is what tells a
 product with no reviews apart from a product whose reviews amz was not allowed
 to read.
 

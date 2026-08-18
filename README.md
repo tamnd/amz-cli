@@ -161,7 +161,7 @@ amz bestsellers electronics --fields rank,title,price,rating -o table
 amz bestsellers electronics -n 20 --fields asin,title,price -o csv
 amz bestsellers electronics -n 10 -o url
 amz product B075F5X8BR -o json
-amz reviews B075F5X8BR -o jsonl | jq 'select(.stars <= 2)'
+amz reviews B075F5X8BR -o jsonl | jq 'select(.rating <= 2)'
 ```
 
 Turn a search into full product records:
@@ -310,7 +310,8 @@ corePrice
 
 $ amz product B075F5X8BR -o jsonl | jq -r '.envelope.missed[] | .field + ": " + .why'
 similar_asins: product region "similarities" or "sims-consolidated-2_feature_div" not present on this page
-reviews: amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only
+reviews: amazon requires a sign-in for the review corpus, and the detail page carries the histogram and the reviews medley only. the total is the ratings count, which is the largest number the page states
+other_offers: the all-offers panel is built by javascript and states only its own count on the page
 rails: the page carries 2 recommendation strips and this depth drops them
 ```
 
@@ -438,8 +439,8 @@ A scraper is a claim about somebody else's HTML, and the useful question is not 
 ```
 $ amz extraction
 FAMILY   REGION  PAYLOAD  ATTR  SELECTOR  TOTAL
-product  25      0        1     1         27
-search   17      0        4     0         21
+product  25      0        4     1         30
+search   19      0        4     1         24
 chart    0       1        4     4         9
 browse   3       1        6     11        21
 store    2       7        5     0         14
@@ -448,18 +449,19 @@ seller   14      0        0     0         14
 
 Rung 1 is a region Amazon named itself, `data-feature-name="bylineInfo"`, and it is the only rung that survives a restyling.
 Rung 2 is a JavaScript payload the page ships, rung 3 is a data attribute, and rung 4 is a bare CSS selector, which is a guess that happens to be right today.
-The report lists all sixteen rung 4 fields by name with the date each was added, because a selector that has survived a year of Amazon's restyling is a different risk from one written last week, and the date is the only evidence either way.
+The report lists all seventeen rung 4 fields by name with the date each was added, because a selector that has survived a year of Amazon's restyling is a different risk from one written last week, and the date is the only evidence either way.
 
 Point it at a page and it reports what that page actually yielded.
 
 ```
 $ amz extraction B075F5X8BR
-product  product  https://www.amazon.com/dp/B075F5X8BR  2359626 bytes
-26 fields set, 2 missed, 261 regions Amazon named that nothing reads
+product  product  https://www.amazon.com/dp/B075F5X8BR  2355440 bytes
+29 fields set, 3 missed, 259 regions Amazon named that nothing reads
 
 not on this page:
   similar_asins  product region "similarities" or "sims-consolidated-2_feature_div" not present on this page
-  reviews        amazon requires a sign-in for the review corpus, and the detail page carries the rating and the histogram only (on /product-reviews/ and /portal/customer-reviews/)
+  reviews        amazon requires a sign-in for the review corpus, and the detail page carries the histogram and the reviews medley only. the total is the ratings count, which is the largest number the page states (have 13 of 21095, on /product-reviews/ and /portal/customer-reviews/, amz why reviews)
+  other_offers   the all-offers panel is built by javascript and states only its own count on the page (have 1 of 2, on /gp/aod/ajax and /gp/offer-listing/, amz why offers)
 ```
 
 A miss is a field the registry declared and the page did not carry, and the sentence beside it is the parser saying what it looked for.
@@ -498,8 +500,11 @@ It is recorded and never trusted. It is a statement by the site about the site, 
 **Public HTML** (the default) reads what a logged-out browser sees. No setup.
 
 **PA-API** (`--api`) calls the official Amazon Product Advertising API 5.0,
-signed locally with SigV4. Needs credentials (`amz config set-api`). Returns
-the same output schema as the other tiers, so scripts work unchanged.
+signed locally with SigV4. Needs credentials in `AMZ_PAAPI_ACCESS_KEY`,
+`AMZ_PAAPI_SECRET_KEY` and `AMZ_PAAPI_PARTNER_TAG`, or in the `[paapi]` block of
+the config file. There is no subcommand that writes one, because a secret typed
+at a shell prompt is a secret in the shell history. Returns the same output
+schema as the other tier, so scripts work unchanged.
 
 ## Exit codes
 
@@ -552,9 +557,10 @@ git tag -a v0.3.0 -m "v0.3.0"
 git push --tags
 ```
 
-Ten targets across five operating systems, a multi-arch container image, deb, rpm
-and apk packages, a Homebrew cask, a Scoop manifest, an SBOM per archive and a
-keyless cosign signature over `checksums.txt`. The image tag carries no `v`
+Ten targets across four operating systems (Linux on amd64, arm64, armv7 and 386,
+macOS and Windows and FreeBSD on amd64 and arm64), a multi-arch container image,
+deb, rpm and apk packages, a Homebrew cask, a Scoop manifest, an SBOM per archive
+and a keyless cosign signature over `checksums.txt`. The image tag carries no `v`
 prefix (`ghcr.io/tamnd/amz:0.3.0`).
 
 What changed in each release, and how to move a script from one to the next, is

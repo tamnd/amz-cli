@@ -48,7 +48,6 @@ apart is holding a corrupted dataset without knowing it.
 | `--sort` | `featured` (default), `price-asc`, `price-desc`, `review`, `newest`, `bestselling`, or a raw Amazon sort value |
 | `--price` | a band in major units: `50-150`, `50-`, `-150` |
 | `--stars` | minimum star rating, resolved against the sidebar |
-| `--prime` | Prime-eligible only |
 | `--brand` | brand name or id |
 | `--seller` | seller name or merchant id |
 | `--condition` | `New`, `Used` or `Renewed` |
@@ -58,8 +57,22 @@ apart is holding a corrupted dataset without knowing it.
 
 ```bash
 amz search "mechanical keyboard" \
-  --price 50-150 --stars 4 --prime --sort review -o table
+  --price 50-150 --stars 4 --sort review -o table
 ```
+
+`--prime` is gone. It is still a registered flag so that passing it says why
+rather than being an unknown flag, and what it says is an exit 2:
+
+```console
+$ amz search "mechanical keyboard" --prime
+amz: --prime is gone in v0.3.0. no capture taken on 2026-08-17 offered the p_85 group at all, and the id v0.2.1 sent (2470955011) would have been dropped in silence.
+run `amz refine <query>` to see whether this query offers a prime filter, then pass it with --refine
+```
+
+The id v0.2.1 sent is per marketplace, and a query that does not offer the group
+gets an unfiltered page rather than an error, which is the failure mode the whole
+refinement layer exists to prevent. `amz offers --prime` is a different thing and
+still works, because that one filters records amz already holds.
 
 ### The vocabulary is read, not compiled in
 

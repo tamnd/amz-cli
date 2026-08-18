@@ -20,8 +20,10 @@ This builds from source and drops `amz` in `$(go env GOPATH)/bin`. Requires Go
 
 Grab an archive for your OS and architecture from the
 [releases page](https://github.com/tamnd/amz-cli/releases), unpack it, and move
-`amz` onto your `PATH`. Every release ships archives for Linux, macOS, Windows,
-and FreeBSD on amd64 and arm64, plus checksums, SBOMs, and a cosign signature.
+`amz` onto your `PATH`. Every release ships ten archives: Linux on amd64, arm64,
+armv7 and 386, and macOS, Windows and FreeBSD on amd64 and arm64. Alongside them
+are checksums, an SBOM per archive, and a keyless cosign signature over
+`checksums.txt`.
 
 ## Linux packages
 
@@ -43,9 +45,15 @@ into it, so there is nothing to install alongside amz for the local store.
 When the taps are live:
 
 ```sh
-brew install tamnd/tap/amz          # macOS / Linux
+brew install --cask tamnd/tap/amz   # macOS
 scoop bucket add tamnd https://github.com/tamnd/scoop-bucket && scoop install amz
 ```
+
+It is a cask and not a formula, so it is macOS only. On Linux use `go install`,
+a package, or the archive. Both publish steps self-disable when their token is
+absent, which is why "when the taps are live" is a real condition: a release with
+no extra secrets still produces every archive and the container image, and each
+manager lights up the moment its repository and token exist.
 
 ## Docker
 

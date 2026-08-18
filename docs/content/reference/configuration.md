@@ -42,7 +42,7 @@ the cached copy but repopulates it.
 
 ## Access tiers
 
-amz reads three tiers, selected per run:
+amz reads two tiers, selected per run:
 
 - **Public HTML**, the default, no setup.
 - **PA-API**, `--api`, uses the official Product Advertising API 5.0 with
@@ -57,6 +57,30 @@ amz config path          # where it lives
 amz config init          # write a starter file
 amz config show          # the resolved configuration (credentials masked)
 ```
+
+Those three are the whole surface. There is no subcommand that writes a
+credential, because a secret typed at a shell prompt is a secret in the shell
+history. `amz config init` writes this and nothing else:
+
+```toml
+# amz configuration
+marketplace = "us"
+rate = "3s"
+retries = 3
+
+# Official Product Advertising API (opt-in). Prefer environment variables:
+#   AMZ_PAAPI_ACCESS_KEY, AMZ_PAAPI_SECRET_KEY, AMZ_PAAPI_PARTNER_TAG
+# [paapi]
+# access_key = ""
+# secret_key = ""
+# partner_tag = ""
+```
+
+`marketplace`, `rate` and `retries` are the three keys worth setting, and each
+one is the default for the flag of the same name. The `[paapi]` block is
+commented out and stays that way for most people: the environment variables
+above are the supported path, and the file is there for a machine where setting
+an environment variable is the harder of the two.
 
 The file lives under the XDG config directory (`~/.config/amz/` on Linux,
 `~/Library/Application Support/amz/` style paths on macOS via XDG).
