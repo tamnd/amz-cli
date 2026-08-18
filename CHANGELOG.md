@@ -28,10 +28,11 @@ The one behaviour change that will surprise people is that `amz reviews` returns
 
 ```console
 $ amz reviews B075F5X8BR
-# 13 reviews, then on stderr:
-note: 13 of 4,812 reviews. amazon requires a sign-in for the full corpus
-note: /product-reviews/ and /portal/customer-reviews/ both redirect to /ap/signin
-note: amz does not carry a session. see `amz why reviews`.
+# 13 reviews on stdout, then on stderr:
+amz: 13 of 21095. amazon requires a sign-in for the review corpus, and the detail page carries the histogram and the reviews medley only. the total is the ratings count, which is the largest number the page states
+amz:   /product-reviews/ is not readable without a session
+amz:   /portal/customer-reviews/ is not readable without a session
+amz: run `amz why reviews` for the detail
 ```
 
 Thirteen reviews and an honest sentence beats zero reviews and wrong advice.
@@ -137,6 +138,14 @@ Sellers, brands and authors are global rather than marketplace scoped, because a
 This changes the `uri` field on every seller, brand and author reference, which is why it landed inside v0.3.0 rather than after it.
 
 ### Fixed
+
+`amz brand <name>` works with a bare name.
+Amazon puts a storefront at `/stores/<name>/page/<uuid>` and nothing derives that uuid from the name, so `/stores/anker` is a 404 and always was.
+A name that does not already point at a page is now resolved the way a person resolves it, by searching the name and following the byline link on the first result that is actually that brand, and a slug that already carries the uuid still costs one request.
+
+The brand is read off `premiumBylineInfo`, which is where Amazon puts it for a premium brand while leaving `bylineInfo` on the page and empty.
+Every premium listing on the site, which is most of the ones anybody searches for by name, returned a null brand before this.
+A byline that renders the brand as a logo and then as a link no longer stops at the logo, since the first anchor in that region has no text in it.
 
 `api-services-support@amazon.com` is no longer treated as a block marker above 5 KB, so a real soft 404 classifies as not found instead of as blocked.
 Gzip is decoded correctly now that `Accept-Encoding` is set by hand, which turns off Go's transparent handling.

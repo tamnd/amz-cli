@@ -75,9 +75,15 @@ func productFields(base, asin string) []Field {
 	return []Field{
 		{Name: "title", Level: LevelRegion, Regions: []string{"title"},
 			Rule: TextOf("h1", "#productTitle"), Why: "the product name as the detail page states it"},
-		{Name: "brand", Level: LevelRegion, Regions: []string{"bylineInfo", "brandLogo"},
+		// premiumBylineInfo is the third spelling and it is not rare. Measured on
+		// 2026-08-18 against B088NRLMPV: bylineInfo is on the page, is empty, and
+		// carries the comment "No content: Premium non-fashion products", and the
+		// brand and its storefront are in premiumBylineInfo instead. Reading only
+		// the first two returned a null brand for every premium brand on the
+		// site, which is most of the ones anybody searches for by name.
+		{Name: "brand", Level: LevelRegion, Regions: []string{"bylineInfo", "premiumBylineInfo", "brandLogo"},
 			Rule: LinkText(), Why: "the byline, with Amazon's Visit the / Store wrapper removed"},
-		{Name: "brand_url", Level: LevelRegion, Regions: []string{"bylineInfo", "brandLogo"},
+		{Name: "brand_url", Level: LevelRegion, Regions: []string{"bylineInfo", "premiumBylineInfo", "brandLogo"},
 			Rule: LinkHref(base), Why: "the brand's storefront"},
 
 		// Four spellings of the same box, all measured on 2026-08-17. One capture

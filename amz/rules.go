@@ -52,11 +52,27 @@ func AttrOf(sel, name string) FieldRule {
 	}
 }
 
-// LinkText is the text of the region's first link, with the wrappers Amazon
-// puts around a brand name removed.
+// LinkText is the text of the region's first link that has any, with the
+// wrappers Amazon puts around a brand name removed.
+//
+// First link that has text, rather than first link. premiumBylineInfo renders
+// the brand twice, as a logo image inside an anchor and then as "Visit the Anker
+// Store" inside a second one, and the logo comes first. Reading only the first
+// anchor returned an empty string on every page that renders that variant, which
+// is every premium brand on the site, and an empty string here means the record
+// says the product has no brand. The image alt is the same word, so the second
+// anchor is not a guess about what the region means.
 func LinkText() FieldRule {
 	return func(_ *Extractor, r Region) (any, bool) {
-		t := collapseSpace(nodeText(r.Find("a").First()))
+		var t string
+		r.Find("a").EachWithBreak(func(_ int, a *goquery.Selection) bool {
+			s := collapseSpace(nodeText(a))
+			if s == "" {
+				s = collapseSpace(attrOf(a.Find("img").First(), "alt"))
+			}
+			t = s
+			return s == ""
+		})
 		t = strings.TrimPrefix(t, "Visit the ")
 		t = strings.TrimPrefix(t, "Brand: ")
 		t = strings.TrimSuffix(t, " Store")
@@ -64,10 +80,14 @@ func LinkText() FieldRule {
 	}
 }
 
-// LinkHref is the href of the region's first link, made absolute.
+// LinkHref is the href of the region's first link that has one, made absolute.
 func LinkHref(base string) FieldRule {
 	return func(_ *Extractor, r Region) (any, bool) {
-		h := absoluteURL(base, attrOf(r.Find("a").First(), "href"))
+		var h string
+		r.Find("a").EachWithBreak(func(_ int, a *goquery.Selection) bool {
+			h = absoluteURL(base, attrOf(a, "href"))
+			return h == ""
+		})
 		return h, h != ""
 	}
 }

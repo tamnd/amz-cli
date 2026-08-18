@@ -236,9 +236,20 @@ measured ` + measured + `. v0.2.1 follows that redirect and returns the search
 results as if they were the brand's catalogue, which is worse than returning
 nothing. amz treats it as not found.
 
-the brand's products are readable, just not from there.`,
+the short path has no uuid on it and 404s outright:
+
+  /stores/anker                  404, 1,147 bytes
+
+so a bare name has to be resolved. nothing derives the uuid from the name,
+and the only public page that states it is the byline on a product the brand
+sells. amz searches the name, opens up to three organic results and follows
+the byline link on the first one whose brand is the brand asked for. that is
+four requests, and a slug that already carries the uuid costs one.
+
+the brand's products are readable, just not from the storefront.`,
 	Do: []string{
-		"amz brand <slug|uuid|url>      the brand record",
+		"amz brand <name>               resolved through a product byline, four requests",
+		"amz brand <slug|uuid|url>      the brand record, one request",
 		"amz search --brand <name>      the products, which is the route that works",
 	},
 }, {
